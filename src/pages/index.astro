@@ -2,9 +2,39 @@
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import SealStage from '../components/SealStage.astro';
+import Row from '../components/Row.astro';
+import Tray from '../components/mocks/Tray.astro';
+import Shelf from '../components/mocks/Shelf.astro';
+import Inspector from '../components/mocks/Inspector.astro';
+import PantryResults from '../components/mocks/PantryResults.astro';
+import Recipe from '../components/mocks/Recipe.astro';
 ---
 <Base title="NetRelish — Keep the pages that matter" description="NetRelish is a Mac browser with a pantry. Save any page with one key, sort it into jars, and seal the ones you’ll need again — searchable, summarized on your Mac, offline.">
   <main>
     <Hero><SealStage /></Hero>
+
+    <Row id="how" eyebrow="Capture" h2="One key to save anything.">
+      <p>Press <kbd>⌘</kbd><kbd>D</kbd> on any page, or share from any app. It lands in Brine, right where you can see it. Nothing gets lost in a bookmarks folder again.</p>
+      <Tray slot="mock" />
+    </Row>
+    <Row eyebrow="Sort" h2="Jars, not folders." flip>
+      <p>Drag a saved page onto a jar on the Shelf. Jars are where your projects live — clients, research, reading, whatever you’re working on this month. Every jar is its own profile: its own cookies, its own logins.</p>
+      <p>Switch with <kbd>⌘</kbd><kbd>1</kbd> through <kbd>⌘</kbd><kbd>9</kbd>.</p>
+      <Shelf slot="mock" />
+    </Row>
+    <Row eyebrow="Seal" h2="Seal it, and it’s yours.">
+      <p>Sealing saves a complete snapshot, closes the tab, and runs the jar’s Recipe. The page is preserved exactly as you saw it and never changes.</p>
+      <p>The tab count goes down. That’s the point.</p>
+      <Inspector slot="mock" />
+    </Row>
+    <Row eyebrow="Search" h2="Search what you kept, not the whole internet." flip>
+      <p>Every sealed page is indexed in full. Find it from Ask the Pantry or straight from Spotlight.</p>
+      <PantryResults slot="mock" />
+    </Row>
+    <Row eyebrow="Recipes" h2="Workflows that run on save.">
+      <p>A Recipe is a short list of steps: label it, move it, summarize it, export it. Attach one to a jar and it runs on every seal.</p>
+      <p>Every Recipe is a Shortcut, so Siri and the rest of your Mac can run it too.</p>
+      <Recipe slot="mock" />
+    </Row>
   </main>
 </Base>
