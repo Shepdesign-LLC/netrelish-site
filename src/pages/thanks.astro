@@ -1,0 +1,19 @@
+---
+import Base from '../layouts/Base.astro';
+import { readDesignSvg } from '../lib/svg';
+const cog = readDesignSvg('logo-cog');
+---
+<Base title="You’re on the list — NetRelish" description="Beta invites go out in waves.">
+  <main class="empty"><div class="wrap empty__box">
+    <span class="empty__mark" set:html={cog} />
+    <p class="empty__line">You’re on the list. Beta invites go out in waves; you’ll hear from us.</p>
+    <p><a href="/">Back to NetRelish</a></p>
+  </div></main>
+</Base>
+<style>
+  .empty { min-height: 60vh; display: grid; place-items: center; padding: var(--sp-12) 0; }
+  .empty__box { display: grid; justify-items: center; gap: var(--sp-4); text-align: center; }
+  .empty__mark { width: 48px; height: 48px; }
+  .empty__mark :global(svg) { width: 100%; height: 100%; }
+  .empty__line { font-size: var(--fs-xl); max-width: 32em; }
+</style>

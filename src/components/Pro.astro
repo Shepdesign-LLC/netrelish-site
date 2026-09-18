@@ -1,0 +1,41 @@
+---
+// Contents are ADR 0003 in the NetRelish repo. No relish anywhere in this section.
+---
+<section class="section pro" id="pro"><div class="wrap">
+  <p class="eyebrow">Pro</p>
+  <h2>Pro turns saved pages into evidence.</h2>
+  <div class="pro__grid">
+    <div><h3>Reseal and diff</h3><p class="muted">Seal the same page again later and see exactly what changed — prices, terms, copy, anything.</p></div>
+    <div><h3>Provenance</h3><p class="muted">Every seal carries a signed timestamp and a fingerprint you can export as proof you saw it, when you saw it.</p></div>
+    <div><h3>Jar bundles</h3><p class="muted">Share a whole jar over AirDrop. No account, no server, nothing to sign up for on the other end.</p></div>
+    <div><h3>Unlimited Recipes</h3><p class="muted">And semantic search across everything you’ve sealed, so “that thing about hinge tolerances” is findable.</p></div>
+  </div>
+  <div class="plans">
+    <div class="plan">
+      <div class="plan__name">Free</div><div class="plan__price tnum">$0</div><div class="quiet plan__per">forever</div>
+      <ul class="plan__list"><li>Capture, jars, seal, full-text search</li><li>3 Recipes</li><li>Share extension, Spotlight, Shortcuts</li></ul>
+      <a class="btn btn--secondary" href="#join">Join the beta</a>
+    </div>
+    <div class="plan">
+      <div class="plan__name">Pro</div><div class="plan__price tnum">$39</div><div class="quiet plan__per">per year, or $99 once</div>
+      <ul class="plan__list"><li>Everything in Free</li><li>Reseal and diff, provenance export</li><li>Jar bundles, unlimited Recipes</li><li>Semantic search</li></ul>
+      <a class="btn btn--secondary" href="#join">Join the beta</a>
+    </div>
+  </div>
+  <p class="quiet pro__fine">One price. No seats, no tiers, no telemetry. Buy once, use forever.</p>
+</div></section>
+<style>
+  .pro { background: var(--nr-surface-2); }
+  .pro__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--hairline); background: var(--nr-hairline); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-3); overflow: hidden; margin-top: var(--sp-8); }
+  .pro__grid > div { background: var(--nr-bg); padding: var(--sp-6) var(--sp-8); }
+  .pro__grid h3 { margin-bottom: var(--sp-2); }
+  .pro__grid p { font-size: var(--fs-lg); }
+  .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); margin-top: var(--sp-10); max-width: 760px; }
+  .plan { border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-3); padding: var(--sp-6) var(--sp-8); background: var(--nr-bg); }
+  .plan__name { font-weight: 600; font-size: var(--fs-xl); }
+  .plan__price { font-weight: 600; font-size: var(--fs-3xl); letter-spacing: -0.02em; margin: var(--sp-2) 0 0; line-height: 1; }
+  .plan__per { font-size: var(--fs-md); margin-top: var(--sp-1); }
+  .plan__list { margin: var(--sp-5) 0 var(--sp-6); padding-left: 18px; color: var(--nr-fg-2); font-size: var(--fs-lg); display: grid; gap: var(--sp-2); }
+  .pro__fine { margin-top: var(--sp-5); font-size: var(--fs-md); }
+  @media (max-width: 820px) { .pro__grid, .plans { grid-template-columns: 1fr; } }
+</style>

@@ -1,0 +1,13 @@
+<div class="tray">
+  <div class="tray__label"><svg class="tray__sink"><use href="#nr-sink" /></svg>Brine <span class="badge">3</span></div>
+  <div class="item"><span class="fav"></span>swiftpackageindex.com — GRDB</div>
+  <div class="item"><span class="fav"></span>github.com/design-first</div>
+  <div class="item"><span class="fav"></span>developer.apple.com — WKWebView</div>
+</div>
+<style>
+  .tray { width: 100%; display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; padding: var(--sp-3) var(--sp-4); background: var(--nr-surface); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-2); }
+  .tray__label { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--nr-fg-2); }
+  .tray__sink { width: 18px; height: 18px; color: var(--nr-fg-2); }
+  .item { display: flex; align-items: center; gap: var(--sp-2); height: 32px; padding: 0 var(--sp-3); border-radius: var(--r-1); background: var(--nr-bg); border: var(--hairline) solid var(--nr-hairline); font-size: var(--fs-sm); color: var(--nr-fg-2); white-space: nowrap; }
+  .fav { width: 11px; height: 11px; border-radius: 3px; background: var(--nr-hairline); }
+</style>

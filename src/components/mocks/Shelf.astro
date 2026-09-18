@@ -1,0 +1,13 @@
+<div class="shelf">
+  {['Clients', 'Research', 'Reading', 'Tooling'].map((name, i) => (
+    <span class:list={['jar', { 'jar--on': i === 1 }]}><svg><use href="#nr-jar" /></svg><span class="jar__name">{name}</span></span>
+  ))}
+</div>
+<style>
+  .shelf { display: flex; gap: var(--sp-6); }
+  .jar { width: 64px; display: grid; justify-items: center; gap: var(--sp-1); padding: var(--sp-2) 0; border-radius: var(--r-2); color: var(--nr-fg); }
+  .jar svg { width: 32px; height: 32px; }
+  .jar--on { background: var(--relish-100); }
+  .jar__name { font-size: var(--fs-xs); color: var(--nr-fg-2); }
+  .jar--on .jar__name { color: var(--nr-fg); }
+</style>

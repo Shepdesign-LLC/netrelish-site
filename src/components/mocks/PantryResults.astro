@@ -1,0 +1,21 @@
+---
+const results = [
+  ['Reference', 'Hinge tolerances for cabinet doors — Blum'],
+  ['Research', 'Why your soft-close hinge slams — a tolerance stack-up'],
+  ['Clients', 'Hartley kitchen — hardware spec'],
+];
+---
+<div class="pantry">
+  <div class="pantry__field">hinge tolerances</div>
+  {results.map(([jar, title]) => (
+    <div class="res"><span class="res__jar"><svg><use href="#nr-jar" /></svg>{jar}</span><span>{title}</span></div>
+  ))}
+</div>
+<style>
+  .pantry { width: 100%; max-width: 480px; background: var(--nr-surface); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-2); overflow: hidden; }
+  .pantry__field { padding: var(--sp-3) var(--sp-4); font-size: var(--fs-md); border-bottom: var(--hairline) solid var(--nr-hairline); }
+  .res { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); color: var(--nr-fg); }
+  .res + .res { border-top: var(--hairline) solid var(--nr-hairline); }
+  .res__jar { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: var(--r-1); background: var(--nr-surface-2); color: var(--nr-fg-2); font-size: var(--fs-xs); white-space: nowrap; }
+  .res__jar svg { width: 12px; height: 12px; }
+</style>

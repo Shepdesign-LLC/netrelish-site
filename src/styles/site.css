@@ -1,0 +1,50 @@
+@import '../../design/tokens.css';
+@import '@fontsource-variable/bricolage-grotesque/standard.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--nr-bg); color: var(--nr-fg);
+  font-family: var(--font-ui); font-size: var(--fs-lg); line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+h2 { font-size: var(--fs-2xl); font-weight: 600; line-height: var(--lh-tight); letter-spacing: -0.01em; }
+h3 { font-size: var(--fs-xl); font-weight: 600; line-height: var(--lh-ui); }
+a { color: var(--nr-fg); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--nr-focus); outline-offset: 3px; border-radius: var(--r-1); }
+kbd {
+  font-family: var(--font-mono); font-size: 0.85em; padding: 1px 6px; border-radius: var(--r-1);
+  border: var(--hairline) solid var(--nr-hairline); border-bottom-width: 2px; background: var(--nr-surface-2);
+}
+svg { display: block; }
+
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 var(--sp-6); }
+.section { padding: var(--sp-12) 0; border-top: var(--hairline) solid var(--nr-hairline); }
+.hairline-top { border-top: var(--hairline) solid var(--nr-hairline); }
+.muted { color: var(--nr-fg-2); }
+.quiet { color: var(--nr-fg-3); }
+.eyebrow {
+  font-family: var(--font-mono); font-size: var(--fs-sm); letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--nr-fg-3); margin-bottom: var(--sp-3);
+}
+.tnum { font-variant-numeric: tabular-nums; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2); height: 40px; padding: 0 var(--sp-4);
+  border-radius: var(--r-1); font: 600 var(--fs-lg) / 1 var(--font-ui); text-decoration: none; cursor: pointer;
+  border: var(--hairline) solid var(--nr-hairline); background: transparent; color: var(--nr-fg);
+  transition: background var(--t-fast) var(--ease-out);
+}
+.btn--secondary:hover { background: var(--nr-surface-2); }
+.btn--primary { background: var(--relish-500); color: var(--relish-ink); border-color: transparent; }
+.btn--primary:hover { background: var(--relish-300); }
+.btn:active { transform: translateY(1px); }
+
+/* Manifest badge (#6). Mock windows only. */
+.badge {
+  display: inline-block; padding: 2px var(--sp-2); border-radius: var(--r-1);
+  background: var(--relish-100); color: var(--relish-700); font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
+}

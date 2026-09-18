@@ -1,0 +1,16 @@
+<div class="recipe">
+  <div class="recipe__card">
+    <div class="recipe__name">Summarize and label</div>
+    <ol class="recipe__steps"><li>Summarize the page</li><li>Add labels</li><li>Move to Reference</li></ol>
+  </div>
+  <div class="recipe__arrow" aria-hidden="true">→</div>
+  <div class="recipe__card"><div class="recipe__name">Shortcuts</div><div class="muted recipe__sc">“Seal this into Clients”</div><div class="quiet recipe__sc">Siri · Action button · Focus</div></div>
+</div>
+<style>
+  .recipe { display: flex; align-items: center; gap: var(--sp-4); }
+  .recipe__card { padding: var(--sp-4); background: var(--nr-surface); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-2); min-width: 200px; }
+  .recipe__name { font-weight: 500; font-size: var(--fs-md); margin-bottom: var(--sp-2); }
+  .recipe__steps { margin: 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--nr-fg-2); }
+  .recipe__sc { font-size: var(--fs-sm); }
+  .recipe__arrow { color: var(--nr-fg-3); font-size: var(--fs-xl); }
+</style>
