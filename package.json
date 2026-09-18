@@ -1,0 +1,28 @@
+{
+  "name": "netrelish-site",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "check": "astro check",
+    "test": "vitest run",
+    "check:design": "bash scripts/check-design.sh",
+    "check:network": "node scripts/check-network.mjs",
+    "check:relish": "node scripts/check-relish.mjs",
+    "og": "node scripts/gen-og.mjs",
+    "ci": "npm run check:design && npm run check && npm run test && npm run build && npm run check:network && npm run check:relish"
+  },
+  "dependencies": {
+    "@astrojs/vercel": "^11.0.10",
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "astro": "^7.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "sharp": "^0.35.4",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.1"
+  }
+}
