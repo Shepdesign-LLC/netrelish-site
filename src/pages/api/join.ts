@@ -13,7 +13,10 @@ export const POST: APIRoute = async ({ request }) => {
   };
   if (!env.BENTO_SECRET_KEY) {
     console.error('join: BENTO_* env not set');
-    return new Response(JSON.stringify({ ok: false, error: 'The list isn’t configured yet.' }), { status: 503, headers: { 'content-type': 'application/json' } });
+    const json = (request.headers.get('content-type') ?? '').includes('application/json');
+    return json
+      ? new Response(JSON.stringify({ ok: false, error: 'The list isn’t configured yet.' }), { status: 503, headers: { 'content-type': 'application/json' } })
+      : new Response(null, { status: 303, headers: { location: '/?join=error#join' } });
   }
   return handleJoin(request, { fetch, env, allowedHosts });
 };

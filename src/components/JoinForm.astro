@@ -1,0 +1,49 @@
+<form id="join" class="join" method="post" action="/api/join" novalidate>
+  <label class="join__label" for="join-email">Email</label>
+  <div class="join__row">
+    <input id="join-email" class="join__input" type="email" name="email" placeholder="you@example.com" autocomplete="email" required inputmode="email" />
+    <button class="btn btn--primary" type="submit">Join the beta</button>
+  </div>
+  <div class="join__hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" /></label></div>
+  <p class="join__msg" role="status" aria-live="polite"></p>
+</form>
+<style>
+  .join { margin-top: var(--sp-8); max-width: 520px; }
+  .join__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .join__row { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+  .join__input {
+    flex: 1 1 240px; height: 40px; padding: 0 var(--sp-3); font: 400 var(--fs-lg) var(--font-ui);
+    color: var(--nr-fg); background: var(--nr-surface); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-1);
+  }
+  .join__input::placeholder { color: var(--nr-fg-3); }
+  .join__hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+  .join__msg { min-height: 1.5em; margin-top: var(--sp-2); font-size: var(--fs-md); color: var(--nr-fg-2); }
+  .join__msg[data-tone="error"] { color: var(--nr-danger); }
+  .join :global(.join__done) { font-size: var(--fs-lg); color: var(--nr-fg); }
+</style>
+<script>
+  const form = document.getElementById('join') as HTMLFormElement;
+  const msg = form.querySelector('.join__msg') as HTMLParagraphElement;
+  const params = new URLSearchParams(location.search);
+  if (params.get('join') === 'invalid') { msg.dataset.tone = 'error'; msg.textContent = 'That email doesn’t look right.'; }
+  if (params.get('join') === 'error') { msg.dataset.tone = 'error'; msg.textContent = 'Couldn’t reach the list — try again in a minute.'; }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button') as HTMLButtonElement;
+    const data = Object.fromEntries(new FormData(form).entries());
+    btn.disabled = true; msg.dataset.tone = ''; msg.textContent = 'Adding you…';
+    try {
+      const res = await fetch(form.action, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
+      const j = await res.json().catch(() => ({ ok: false }));
+      if (j.ok) {
+        form.querySelector('.join__row')!.replaceWith(Object.assign(document.createElement('p'), { className: 'join__done', textContent: 'You’re on the list. Beta invites go out in waves; you’ll hear from us.' }));
+        msg.textContent = '';
+      } else {
+        msg.dataset.tone = 'error'; msg.textContent = j.error ?? 'Something went wrong.'; btn.disabled = false;
+      }
+    } catch {
+      msg.dataset.tone = 'error'; msg.textContent = 'Couldn’t reach the list — try again in a minute.'; btn.disabled = false;
+    }
+  });
+</script>
