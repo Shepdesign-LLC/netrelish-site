@@ -8,6 +8,10 @@ import Shelf from '../components/mocks/Shelf.astro';
 import Inspector from '../components/mocks/Inspector.astro';
 import PantryResults from '../components/mocks/PantryResults.astro';
 import Recipe from '../components/mocks/Recipe.astro';
+import Intelligence from '../components/Intelligence.astro';
+import Pickle from '../components/Pickle.astro';
+import Pro from '../components/Pro.astro';
+import Questions from '../components/Questions.astro';
 ---
 <Base title="NetRelish — Keep the pages that matter" description="NetRelish is a Mac browser with a pantry. Save any page with one key, sort it into jars, and seal the ones you’ll need again — searchable, summarized on your Mac, offline.">
   <main>
@@ -36,5 +40,10 @@ import Recipe from '../components/mocks/Recipe.astro';
       <p>Every Recipe is a Shortcut, so Siri and the rest of your Mac can run it too.</p>
       <Recipe slot="mock" />
     </Row>
+
+    <Intelligence />
+    <Pickle />
+    <Pro />
+    <Questions />
   </main>
 </Base>
