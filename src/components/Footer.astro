@@ -1,0 +1,21 @@
+---
+import { readDesignSvg } from '../lib/svg';
+const logo = readDesignSvg('logo');
+---
+<footer class="footer">
+  <div class="wrap footer__row">
+    <span class="footer__mark" set:html={logo} />
+    <span>© 2026 Shepdesign LLC</span>
+    <a href="https://github.com/Shepdesign-LLC/NetRelish">GitHub</a>
+    <a href="/privacy">Privacy</a>
+    <span class="footer__tag">Built on WebKit. Nothing leaves your Mac.</span>
+  </div>
+</footer>
+<style>
+  .footer { padding: var(--sp-12) 0; border-top: var(--hairline) solid var(--nr-hairline); color: var(--nr-fg-3); font-size: var(--fs-md); }
+  .footer__row { display: flex; align-items: center; gap: var(--sp-6); flex-wrap: wrap; }
+  .footer__mark { width: 24px; height: 24px; }
+  .footer__mark :global(svg) { width: 100%; height: 100%; }
+  .footer__tag { margin-left: auto; }
+  .footer a { color: var(--nr-fg-2); }
+</style>

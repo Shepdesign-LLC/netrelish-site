@@ -1,0 +1,26 @@
+---
+const qa = [
+  ['Is it a browser?', 'Yes. It uses WebKit, the same engine as Safari, so sites behave. You can make it your default or keep it alongside Safari.'],
+  ['Where’s my data?', 'In a database on your Mac. Export it any time as a jar bundle.'],
+  ['Does it need an account?', 'No. Pro is a Mac App Store purchase, or a license key from this site for the direct build.'],
+  ['Extensions?', 'No browser extensions. Recipes and Shortcuts do that job without the security surface.'],
+  ['Windows?', 'No plans. NetRelish is a Mac app.'],
+  ['Open source?', 'The code is MIT on GitHub. The name and mark are ours.'],
+];
+---
+<section class="section" id="questions"><div class="wrap q">
+  <p class="eyebrow">Questions</p>
+  <h2 class="q__h2">Before you join</h2>
+  {qa.map(([q, a]) => (<details class="q__item"><summary>{q}</summary><p class="muted">{a}</p></details>))}
+</div></section>
+<style>
+  .q { max-width: 760px; }
+  .q__h2 { margin-bottom: var(--sp-6); }
+  .q__item { border-top: var(--hairline) solid var(--nr-hairline); padding: var(--sp-4) 0; }
+  .q__item:last-of-type { border-bottom: var(--hairline) solid var(--nr-hairline); }
+  summary { cursor: pointer; font-weight: 500; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; color: var(--nr-fg-2); font-size: var(--fs-xl); line-height: 1; }
+  details[open] summary::after { content: '–'; }
+  .q__item p { margin-top: var(--sp-3); max-width: 60ch; }
+</style>

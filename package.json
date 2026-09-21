@@ -2,7 +2,9 @@
   "name": "netrelish-site",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
@@ -21,8 +23,12 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@types/node": "^22.20.3",
     "sharp": "^0.35.4",
     "typescript": "^6.0.0",
     "vitest": "^5.0.1"
+  },
+  "overrides": {
+    "path-to-regexp@>=6.0.0 <6.3.0": "6.3.0"
   }
 }
