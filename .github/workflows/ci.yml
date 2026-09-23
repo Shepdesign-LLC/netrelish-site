@@ -1,4 +1,12 @@
 name: ci
+
+# The job checks out, installs, and runs the checks. It writes nothing back —
+# no comments, no commits, no releases — so the token is read-only. Without
+# this block the workflow inherits the repository default, which may be
+# write-all, and CodeQL's actions/missing-workflow-permissions flags it.
+permissions:
+  contents: read
+
 on:
   push: { branches: [main] }
   pull_request: {}
