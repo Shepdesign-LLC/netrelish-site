@@ -139,15 +139,13 @@ Sandbox keys, `npm run dev`, `stripe listen --forward-to localhost:4321/api/stri
 purchase, and watch `async_payment_succeeded` land. Unit tests (`npm test`) cover every route with a fake Stripe client and
 the real signature code, including the other-brand events the webhook must ignore.
 
-## Cleaning up the Shepdesign account
+## The Shepdesign account
 
-The first pass of this work (2026-09-27) ran steps 1–2 against the **Shepdesign** account by mistake. Nothing has sold
-through it, so the cleanup is small and safe to do from the Dashboard there:
-
-- Archive product `NetRelish Pro` (`prod_VKsugJCePHxbWj`); that deactivates `price_1UKD9UI31LsBskzXtQP2a4u1`
-  (`netrelish_pro_year`) and `price_1UKD9WI31LsBskzX8gTPqYSJ` (`netrelish_pro_lifetime`) with it.
-- Delete webhook endpoint `we_1UKDFpI31LsBskzXVr4hAoYT` (`https://netrelish.com/api/stripe/webhook`). Until it is gone,
-  Shepdesign's events hit this site's endpoint and fail signature verification — harmless, but noisy in both Dashboards.
+The first pass of this work (2026-09-27) ran the catalog seed and webhook creation against the **Shepdesign** account by
+mistake. Nothing sold through it, and it was cleaned up the same day: product `NetRelish Pro` (`prod_VKsugJCePHxbWj`) is
+archived with both its prices deactivated, and webhook endpoint `we_1UKDFpI31LsBskzXVr4hAoYT` is disabled (the API can't
+delete endpoints through the MCP; delete it from Developers → Webhooks there whenever convenient). Nothing NetRelish
+remains active on that account.
 
 ## Later, if you want legendary
 
