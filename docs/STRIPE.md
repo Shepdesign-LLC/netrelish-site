@@ -88,35 +88,35 @@ Every row first requires `metadata.site = netrelish.com`; otherwise the event is
 
 ## Setup
 
-Already done on the NetRelish account (2026-09-27). The account was not yet activated, so all of this is **test mode**;
-live mode needs the same two steps again once activation completes (`node scripts/stripe-seed.mjs` with the live key, and
-a live endpoint), because Stripe keeps test and live data apart.
+Already done on the NetRelish account (2026-09-27), in live mode, test mode and the sandbox alike:
 
-- **Catalog seeded** in test mode (`prod_VKvF0nrWT6uvx4`) and in the sandbox (`prod_VKvGEDG1ho0LOJ`): `NetRelish Pro`,
-  tax code `txcd_10202000` (downloadable software, personal use — confirm with your accountant), with
-  `netrelish_pro_year` $39/yr and `netrelish_pro_lifetime` $99.
-- **Test-mode webhook endpoint** `we_1UKFQGEhohwIPQevLe4uIA5u` → `https://netrelish.com/api/stripe/webhook`, API version
-  `2026-08-26.dahlia` (matches the SDK), exactly the events in the table above. Its signing secret is the Preview
-  `STRIPE_WEBHOOK_SECRET`; Production gets the live endpoint's.
+- **Catalog seeded**: `NetRelish Pro` (live `prod_VKvzjV4EMMjL9N`, test `prod_VKvF0nrWT6uvx4`, sandbox
+  `prod_VKvGEDG1ho0LOJ`), tax code `txcd_10202000` (downloadable software, personal use — confirm with your accountant),
+  with `netrelish_pro_year` $39/yr and `netrelish_pro_lifetime` $99.
+- **Webhook endpoints** → `https://netrelish.com/api/stripe/webhook`, API version `2026-08-26.dahlia` (matches the SDK),
+  exactly the events in the table above: live `we_1UKG78EhohwIPQevDQ6fpVG2` (its signing secret is the Production
+  `STRIPE_WEBHOOK_SECRET`) and test `we_1UKFQGEhohwIPQevLe4uIA5u` (Preview).
 - On the Shepdesign account the earlier NetRelish prices are archived and its endpoint is disabled (delete it when
   convenient); the archived product `prod_VKsugJCePHxbWj` can be archived from the Dashboard.
 
 Still to do:
 
-1. **Vercel env** on `netrelish` (Production + Preview, all Sensitive): `STRIPE_WEBHOOK_SECRET` (the endpoint's signing
-   secret, shown once at creation; roll it from the endpoint page if lost), `LICENSE_SECRET` (`openssl rand -base64 48`),
-   and `STRIPE_SECRET_KEY`: Developers → API keys → restricted key with *Checkout Sessions, Customers, Prices, Products,
-   Billing Portal: write*. A sandbox key on Preview is a fine way to rehearse; the sandbox then needs the catalog seeded
-   (`node scripts/stripe-seed.mjs stripe/catalog.netrelish.json`) and its own webhook endpoint pointed at the preview URL.
-2. **Customer Portal** (Settings → Billing → Customer portal): cancel on, payment method update on, invoice history on,
+1. **Vercel env** on `netrelish` (all Sensitive): `STRIPE_WEBHOOK_SECRET` (live endpoint's secret on Production, test
+   endpoint's on Preview; shown once at creation, roll it from the endpoint page if lost), `LICENSE_SECRET`
+   (`openssl rand -base64 48`, same value on both), and `STRIPE_SECRET_KEY`: Developers → API keys → restricted key with
+   *Checkout Sessions, Customers, Prices, Products, Billing Portal: write* — a live key on Production, a test key on
+   Preview. Preview then rehearses against test mode end to end with the same code.
+2. **Stripe Tax** on the NetRelish account: Settings → Tax → enable, confirm the head office, add the Arizona
+   registration. `automatic_tax` on Checkout errors until this is done.
+3. **Customer Portal** (Settings → Billing → Customer portal): cancel on, payment method update on, invoice history on,
    tax ID on, plan switching off (a lifetime buyer has nothing to switch to). Default return URL `https://netrelish.com/#pro`.
    Enable the no-code **portal login page** and put its link in the license email — that is the "lost my link" path.
-3. **Bento.** An automation on `$netrelish_license_issued` that emails `{{ subscriber.license_key }}`, one on
+4. **Bento.** An automation on `$netrelish_license_issued` that emails `{{ subscriber.license_key }}`, one on
    `$netrelish_payment_failed` that links `details.payUrl`, and one on `$netrelish_license_ended`. `$netrelish_license_renewed`
    can just be a receipt.
-4. **Dashboard**: Smart Retries on (Billing → Subscriptions and emails), failed-payment emails on, *Include a link to a
+5. **Dashboard**: Smart Retries on (Billing → Subscriptions and emails), failed-payment emails on, *Include a link to a
    payment page in the invoice email* on. Branding: logo + relish for Checkout, Portal, invoices, receipts.
-5. Merge, then set `PUBLIC_STORE_OPEN=true` on Production and redeploy. The buy buttons appear; nothing else changes.
+6. Merge, then set `PUBLIC_STORE_OPEN=true` on Production and redeploy. The buy buttons appear; nothing else changes.
 
 ### Selling by invoice
 
