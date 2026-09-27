@@ -6,8 +6,8 @@
  * `async_payment_succeeded` otherwise; treat `invoice.paid` as a renewal (subscription_cycle) or an
  * manual invoice (manual + metadata.plan), never as the first purchase, which Checkout already covered.
  *
- * The Stripe account is shared across brands. Every object this site creates carries `metadata.site`, and a
- * Dashboard invoice for this site must be given it by hand; anything else is another brand's and is ignored.
+ * Every object this site creates carries `metadata.site`, and a Dashboard invoice that should issue a key must be given it
+ * by hand; anything without it (a test charge, another product, another brand if the account is ever shared) is ignored.
  */
 import type Stripe from 'stripe';
 import type { StripeApi } from './stripe/api';
@@ -21,7 +21,7 @@ export interface WebhookDeps {
   secret: string;
   fulfil: Fulfiller;
   license: Licenser;
-  /** Brand tag to act on (metadata.site). Events for other brands on the shared account are acknowledged and ignored. */
+  /** Brand tag to act on (metadata.site). Events without it are acknowledged and ignored. */
   site: string;
   /** Optional replay guard. Fulfilment is idempotent anyway (keys are derived), so this only saves work. */
   seen?: (eventId: string) => Promise<boolean>;
@@ -91,7 +91,7 @@ async function dispatch(event: Stripe.Event, deps: WebhookDeps): Promise<boolean
 }
 
 async function fulfilSession(s: Stripe.Checkout.Session, deps: WebhookDeps): Promise<boolean> {
-  if (s.metadata?.site !== deps.site) return false; // another brand on the shared account
+  if (s.metadata?.site !== deps.site) return false; // not tagged as ours: test charge, other product, other brand
   if (s.payment_status !== 'paid') return false; // completed-but-processing: async_payment_succeeded will follow
   const email = s.customer_details?.email ?? s.customer_email;
   const customer = idOf(s.customer);

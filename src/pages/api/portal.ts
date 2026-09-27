@@ -13,5 +13,11 @@ export const POST: APIRoute = async ({ request }) => {
     console.error('portal: STRIPE_SECRET_KEY not set');
     return notConfigured(request, 'Billing isn’t configured yet.', '/?portal=error#pro');
   }
-  return handlePortal(request, { stripe: stripeClient(key), allowedHosts: ALLOWED_HOSTS, siteUrl: new URL(request.url).origin });
+  return handlePortal(request, {
+    stripe: stripeClient(key),
+    allowedHosts: ALLOWED_HOSTS,
+    siteUrl: new URL(request.url).origin,
+    // Optional: the bpc_… from scripts/stripe-portal.mjs. Unset opens the account's default configuration.
+    configuration: readEnv('STRIPE_PORTAL_CONFIG') || undefined,
+  });
 };

@@ -80,7 +80,7 @@ describe('handleStripeWebhook', () => {
     expect(await res.json()).toEqual({ received: true, handled: false }); // an ordinary invoice, not a license
   });
 
-  it('ignores every event that belongs to another brand on the shared account', async () => {
+  it('ignores every event not tagged as this site’s (another brand, a test charge)', async () => {
     const { d } = deps();
     const other = { plan: 'personal', site: 'hookedonfacets.com' };
     const inv = { id: 'in_o', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'manual', metadata: other, parent: null };

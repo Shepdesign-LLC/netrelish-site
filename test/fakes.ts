@@ -11,7 +11,7 @@ export function fakeStripe(over: Partial<{ [K in keyof StripeApi]: Partial<Strip
     checkout: {
       sessions: {
         create: vi.fn(async () => ({ id: 'cs_test_1', url: 'https://checkout.stripe.com/c/pay/cs_test_1' })) as never,
-        retrieve: vi.fn(async () => ({ id: 'cs_test_1', customer: 'cus_1' })) as never,
+        retrieve: vi.fn(async () => ({ id: 'cs_test_1', customer: 'cus_1', created: Math.floor(Date.now() / 1000) })) as never,
       },
     },
     billingPortal: { sessions: { create: vi.fn(async () => ({ url: 'https://billing.stripe.com/session/x' })) as never } },
