@@ -1,0 +1,31 @@
+---
+// Server-rendered so the Checkout Session id can ride the query string into the portal form without client JS.
+import Base from '../../layouts/Base.astro';
+import { readDesignSvg } from '../../lib/svg';
+import { SESSION_ID } from '../../lib/checkout';
+export const prerender = false;
+const sid = Astro.url.searchParams.get('session_id') ?? '';
+const canManage = SESSION_ID.test(sid);
+const cog = readDesignSvg('logo-cog');
+---
+<Base title="Thanks — NetRelish" description="Your Pro license key is on its way.">
+  <main class="empty"><div class="wrap empty__box">
+    <span class="empty__mark" set:html={cog} />
+    <p class="empty__line">Payment received. Your license key is on its way by email; give it a minute, and check spam if it doesn’t show.</p>
+    {canManage && (
+      <form method="post" action="/api/portal" class="empty__form">
+        <input type="hidden" name="session_id" value={sid} />
+        <button class="btn btn--secondary" type="submit">Manage billing</button>
+      </form>
+    )}
+    <p><a href="/">Back to NetRelish</a></p>
+  </div></main>
+</Base>
+<style>
+  .empty { min-height: 60vh; display: grid; place-items: center; padding: var(--sp-12) 0; }
+  .empty__box { display: grid; justify-items: center; gap: var(--sp-4); text-align: center; }
+  .empty__mark { width: 48px; height: 48px; }
+  .empty__mark :global(svg) { width: 100%; height: 100%; }
+  .empty__line { font-size: var(--fs-xl); max-width: 32em; }
+  .empty__form { margin-top: var(--sp-2); }
+</style>

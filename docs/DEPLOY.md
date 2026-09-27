@@ -7,6 +7,8 @@ Vercel project: `netrelish` in team Shepdesign (`shepdesign-projects`). One-time
 3. **Root Directory.** Settings → General → Root Directory: leave **blank**. Framework Preset: Astro. Node: 22.x.
 4. **Environment variables.** Settings → Environment Variables, for Production and Preview:
    `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY`, `BENTO_SITE_UUID` — from Bento → Settings → API keys. Mark them Sensitive.
+   For the store: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `LICENSE_SECRET` (Sensitive), and `PUBLIC_STORE_OPEN=true`
+   on Production only when it's time to sell. Setup order is in `docs/STRIPE.md`.
 5. **Domain.** Settings → Domains → Add `netrelish.com` (and `www.netrelish.com`, redirect to apex). At the registrar add the records Vercel shows (typically `A @ → 76.76.21.21` and `CNAME www → cname.vercel-dns.com`; Vercel's page is the source of truth).
 6. **Web Analytics.** Settings → Analytics → enable Web Analytics. The site already injects the
    script (`webAnalytics: { enabled: true }` on the adapter); without the dashboard toggle the
