@@ -24,15 +24,17 @@ The doc links under each decision are the ones it recommended.
 
 ## Which Stripe account
 
-The store runs on **NetRelish's own Stripe account**, not the Shepdesign one. Everything below — catalog, webhook endpoint,
-portal configuration, keys — is created there, by the scripts in `scripts/`, from the NetRelish key. Nothing in this repo
-carries an account or price id; products are matched by `metadata.slug` and prices by `lookup_key`, so the same code runs
-against a sandbox and the live account.
+The store runs on **NetRelish's own Stripe account** (`NetRelish`, `acct_1UKED1EhohwIPQev`, plus a sandbox
+`acct_1UKED7EXV0twADEp`), not the Shepdesign one. Everything below — catalog, webhook endpoint, portal configuration, keys —
+is created there, by the scripts in `scripts/`, from a NetRelish key. Nothing in this repo carries an account or price id;
+products are matched by `metadata.slug` and prices by `lookup_key`, so the same code runs against the sandbox, test mode
+and live.
 
 Every object this site creates still carries **`metadata.site = "netrelish.com"`** (`SITE` in `src/lib/hosts.ts`), and the
-webhook acts only on events carrying it. On a dedicated account that is insurance rather than a necessity: a Dashboard test
-charge, a manually created subscription, or a future second product never becomes a Pro license by accident. A Dashboard
-invoice that *should* issue a key needs both `metadata.site=netrelish.com` and `metadata.plan`.
+webhook acts only on events carrying it. It was briefly on the shared Shepdesign account, where that tag was a necessity;
+on a dedicated account it is belt-and-braces: a Dashboard test charge, a manually created subscription, or a future second
+product never becomes a Pro license by accident. A Dashboard invoice that *should* issue a key needs both
+`metadata.site=netrelish.com` and `metadata.plan`.
 
 ## How it fits together
 
@@ -86,34 +88,53 @@ Every row first requires `metadata.site = netrelish.com`; otherwise the event is
 
 ## Setup
 
-All of it is scripted and idempotent; run each against a sandbox first, then the live account. `--dry-run` prints what would
-happen. The scripts need a **restricted key** (Developers → API keys → Create restricted key) with *Products, Prices,
-Checkout Sessions, Customers, Billing Portal, Webhook Endpoints: write*; the site itself needs the same minus Webhook
-Endpoints.
+All of it is scripted and idempotent; `--dry-run` prints what would happen and a re-run against an account that already
+has the objects is a no-op. The scripts need a **restricted key** (Developers → API keys → Create restricted key) with
+*Products, Prices, Checkout Sessions, Customers, Billing Portal, Webhook Endpoints: write*; the site itself needs the same
+minus Webhook Endpoints.
 
-0. **Prerequisite — Stripe Tax on.** Checkout is created with `automatic_tax: { enabled: true }`, which the API rejects
-   until Stripe Tax is activated (Settings → Tax: head-office address, then Activate). Add registrations only where you
-   have an obligation; with none, Stripe collects nothing and monitors thresholds for free. Prices are seeded with
-   `tax_behavior: exclusive` (tax added on top of the $39 / $99), so no account default is needed for them.
-1. **Catalog**: `STRIPE_SECRET_KEY=… node scripts/stripe-seed.mjs stripe/catalog.netrelish.json` — product `NetRelish Pro`
-   (tax code `txcd_10202000`, *Downloadable Software – Personal Use*; confirm with your accountant) with `netrelish_pro_year`
-   $39/yr and `netrelish_pro_lifetime` $99.
+Already done on the NetRelish account (2026-09-27), verified against the API:
+
+- **Live**: `NetRelish Pro` `prod_VKvzjV4EMMjL9N` with `netrelish_pro_year` (`price_1UKG7LEhohwIPQevG5HGHohl`, $39/yr) and
+  `netrelish_pro_lifetime` (`price_1UKG7OEhohwIPQevUydSQqjt`, $99); webhook endpoint `we_1UKG78EhohwIPQevDQ6fpVG2` →
+  `https://netrelish.com/api/stripe/webhook`, API `2026-08-26.dahlia`, exactly the events in the table above. Its signing
+  secret is the Production `STRIPE_WEBHOOK_SECRET`.
+- **Test mode** (per the first pass): `prod_VKvF0nrWT6uvx4` and endpoint `we_1UKFQGEhohwIPQevLe4uIA5u` → the same URL.
+- **Sandbox**: `prod_VKuTWVPG5f2oXz`, prices `price_1UKEebEXV0twADEppOBM0bxo` / `price_1UKEedEXV0twADEp59STJU27`, Stripe Tax
+  **active**, portal configuration `bpc_1UKEeMEXV0twADEpwStxNaAY` (login page
+  `https://billing.stripe.com/p/login/test_28E6oH8TecSFbTp6hd2sM00`), webhook `we_1UKEeOEXV0twADEpUqFfoAum` pointed at the
+  PR #6 Vercel preview. Both Checkout shapes were created there with the exact parameters `src/lib/checkout.ts` sends.
+
+Still to do, in order:
+
+0. **Stripe Tax on live — blocking.** Live tax settings are `pending` with no head office, and Checkout is created with
+   `automatic_tax: { enabled: true }`, which the API rejects until Tax is active. Settings → Tax: head-office address, then
+   Activate; add registrations only where you have an obligation (Arizona today; with none, Stripe collects nothing and
+   monitors thresholds for free). The account default tax behavior is already *exclusive*, and new prices are seeded with
+   `tax_behavior: exclusive`, so nothing else is needed for the prices.
+1. **Catalog**: `STRIPE_SECRET_KEY=… node scripts/stripe-seed.mjs stripe/catalog.netrelish.json` — done on live; re-run to
+   confirm (`=` lines) or after a catalog change. Tax code `txcd_10202000`, *Downloadable Software – Personal Use*; confirm
+   with your accountant.
 2. **Webhook endpoint**: `STRIPE_SECRET_KEY=… node scripts/stripe-webhook.mjs https://netrelish.com/api/stripe/webhook` —
-   exactly the events in the table above, pinned to the SDK's API version. It prints `STRIPE_WEBHOOK_SECRET` **once**; put it
-   in Vercel straight away (roll it from the endpoint page if lost).
-3. **Customer Portal**: `STRIPE_SECRET_KEY=… node scripts/stripe-portal.mjs` — cancel at period end (with a reason), card
-   update, invoice history, name/address/tax-id edits, no plan switching, login page on. It prints `STRIPE_PORTAL_CONFIG`
-   and the **portal login page URL** — put that URL in the license email; it is the "lost my link" path, because the
-   `Manage billing` button on the done page only works for 24 hours after purchase.
-4. **Vercel env** on `netrelish` (Production + Preview, Sensitive): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
-   `STRIPE_PORTAL_CONFIG`, `LICENSE_SECRET` (`openssl rand -base64 48`). A sandbox key on Preview is the way to rehearse;
-   the sandbox then gets its own run of steps 1–3 with the preview URL in step 2.
+   done on live. It prints `STRIPE_WEBHOOK_SECRET` **once** at creation; if the secret from the first pass is lost, roll it
+   from the endpoint page.
+3. **Customer Portal**: `STRIPE_SECRET_KEY=… node scripts/stripe-portal.mjs` — **not yet on live**. Cancel at period end
+   (with a reason), card update, invoice history, name/address/tax-id edits, no plan switching, login page on. It prints
+   `STRIPE_PORTAL_CONFIG` and the **portal login page URL** — put that URL in the license email; it is the "lost my link"
+   path, because the `Manage billing` button on the done page only works for 24 hours after purchase.
+4. **Vercel env** on `netrelish` (Sensitive): `STRIPE_SECRET_KEY` (live restricted key on Production, sandbox key on
+   Preview), `STRIPE_WEBHOOK_SECRET` (live endpoint's on Production, the sandbox endpoint's on Preview),
+   `STRIPE_PORTAL_CONFIG`, `LICENSE_SECRET` (`openssl rand -base64 48`; a **different** value per environment so a sandbox
+   key can never validate against the live app). Preview deployments sit behind Vercel Authentication, so the sandbox
+   webhook URL needs `?x-vercel-protection-bypass=<secret>` from Settings → Deployment Protection → Protection Bypass for
+   Automation, or Stripe's POSTs get a 302 to SSO.
 5. **Bento.** An automation on `$netrelish_license_issued` that emails `{{ subscriber.license_key }}` and the portal login
    URL, one on `$netrelish_payment_failed` that links `details.payUrl`, and one on `$netrelish_license_ended`.
    `$netrelish_license_renewed` can just be a receipt.
 6. **Dashboard**: Smart Retries on (Billing → Revenue recovery), failed-payment emails on, *Include a link to a payment page
    in the invoice email* on. Branding: logo + relish for Checkout, Portal, invoices, receipts. Public business details
-   (name, support email, statement descriptor) so receipts say NetRelish.
+   (name, support email, statement descriptor) so receipts say NetRelish. Payment methods: consider turning Klarna and
+   Affirm off — buy-now-pay-later on a $39 license is odd.
 7. Merge, then set `PUBLIC_STORE_OPEN=true` on Production and redeploy. The buy buttons appear; nothing else changes.
 
 ### Selling by invoice
@@ -144,8 +165,9 @@ the real signature code, including the other-brand events the webhook must ignor
 The first pass of this work (2026-09-27) ran the catalog seed and webhook creation against the **Shepdesign** account by
 mistake. Nothing sold through it, and it was cleaned up the same day: product `NetRelish Pro` (`prod_VKsugJCePHxbWj`) is
 archived with both its prices deactivated, and webhook endpoint `we_1UKDFpI31LsBskzXVr4hAoYT` is disabled (the API can't
-delete endpoints through the MCP; delete it from Developers → Webhooks there whenever convenient). Nothing NetRelish
-remains active on that account.
+delete endpoints through the MCP; delete it from Developers → Webhooks there whenever convenient). Care plans and the
+Supabase webhook live on that account and are untouched; with NetRelish on its own account nothing from this store reaches
+that endpoint any more.
 
 ## Later, if you want legendary
 
