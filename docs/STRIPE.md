@@ -93,9 +93,8 @@ Endpoints.
 
 0. **Prerequisite — Stripe Tax on.** Checkout is created with `automatic_tax: { enabled: true }`, which the API rejects
    until Stripe Tax is activated (Settings → Tax: head-office address, then Activate). Add registrations only where you
-   have an obligation; with none, Stripe collects nothing and monitors thresholds for free. Prices are created without a
-   `tax_behavior`, so set the account default to *exclusive* (Settings → Tax → Default tax behavior) or Checkout will
-   refuse them.
+   have an obligation; with none, Stripe collects nothing and monitors thresholds for free. Prices are seeded with
+   `tax_behavior: exclusive` (tax added on top of the $39 / $99), so no account default is needed for them.
 1. **Catalog**: `STRIPE_SECRET_KEY=… node scripts/stripe-seed.mjs stripe/catalog.netrelish.json` — product `NetRelish Pro`
    (tax code `txcd_10202000`, *Downloadable Software – Personal Use*; confirm with your accountant) with `netrelish_pro_year`
    $39/yr and `netrelish_pro_lifetime` $99.
