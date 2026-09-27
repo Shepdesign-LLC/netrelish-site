@@ -106,8 +106,9 @@ Still to do:
    (`openssl rand -base64 48`, same value on both), and `STRIPE_SECRET_KEY`: Developers → API keys → restricted key with
    *Checkout Sessions, Customers, Prices, Products, Billing Portal: write* — a live key on Production, a test key on
    Preview. Preview then rehearses against test mode end to end with the same code.
-2. **Stripe Tax** on the NetRelish account: Settings → Tax → enable, confirm the head office, add the Arizona
-   registration. `automatic_tax` on Checkout errors until this is done.
+2. **Stripe Tax** on the NetRelish account is active (head office set to the Tucson address on 2026-09-27), so
+   `automatic_tax` on Checkout works. With no registrations it calculates zero tax and only monitors thresholds; add the
+   Arizona registration under Settings → Tax → Registrations when you're registered there.
 3. **Customer Portal** (Settings → Billing → Customer portal): cancel on, payment method update on, invoice history on,
    tax ID on, plan switching off (a lifetime buyer has nothing to switch to). Default return URL `https://netrelish.com/#pro`.
    Enable the no-code **portal login page** and put its link in the license email — that is the "lost my link" path.
