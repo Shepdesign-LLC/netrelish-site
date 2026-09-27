@@ -4,7 +4,10 @@
  * Rules: verify the signature on the raw body; 2xx only once the fulfilment side effect has happened
  * (Stripe retries on anything else); fulfil on `checkout.session.completed` when paid, on
  * `async_payment_succeeded` otherwise; treat `invoice.paid` as a renewal (subscription_cycle) or an
- * agency invoice (manual + metadata.plan), never as the first purchase, which Checkout already covered.
+ * manual invoice (manual + metadata.plan), never as the first purchase, which Checkout already covered.
+ *
+ * The Stripe account is shared across brands. Every object this site creates carries `metadata.site`, and a
+ * Dashboard invoice for this site must be given it by hand; anything else is another brand's and is ignored.
  */
 import type Stripe from 'stripe';
 import type { StripeApi } from './stripe/api';
@@ -18,6 +21,8 @@ export interface WebhookDeps {
   secret: string;
   fulfil: Fulfiller;
   license: Licenser;
+  /** Brand tag to act on (metadata.site). Events for other brands on the shared account are acknowledged and ignored. */
+  site: string;
   /** Optional replay guard. Fulfilment is idempotent anyway (keys are derived), so this only saves work. */
   seen?: (eventId: string) => Promise<boolean>;
 }
@@ -53,6 +58,7 @@ async function dispatch(event: Stripe.Event, deps: WebhookDeps): Promise<boolean
       return fulfilSession(event.data.object, deps);
     case 'checkout.session.async_payment_failed': {
       const s = event.data.object;
+      if (s.metadata?.site !== deps.site) return false;
       const email = s.customer_details?.email ?? s.customer_email;
       const customer = idOf(s.customer);
       if (!email || !customer) return false;
@@ -63,6 +69,7 @@ async function dispatch(event: Stripe.Event, deps: WebhookDeps): Promise<boolean
       return fulfilInvoice(event.data.object, deps);
     case 'invoice.payment_failed': {
       const inv = event.data.object;
+      if (invoiceSite(inv) !== deps.site) return false;
       const customer = idOf(inv.customer);
       if (!inv.customer_email || !customer) return false;
       await deps.fulfil({ type: 'payment.failed', email: inv.customer_email, plan: invoicePlan(inv), customer, payUrl: inv.hosted_invoice_url ?? null });
@@ -70,6 +77,7 @@ async function dispatch(event: Stripe.Event, deps: WebhookDeps): Promise<boolean
     }
     case 'customer.subscription.deleted': {
       const sub = event.data.object;
+      if (sub.metadata?.site !== deps.site) return false;
       const customer = idOf(sub.customer);
       if (!customer) return false;
       const c = await deps.stripe.customers.retrieve(customer);
@@ -83,6 +91,7 @@ async function dispatch(event: Stripe.Event, deps: WebhookDeps): Promise<boolean
 }
 
 async function fulfilSession(s: Stripe.Checkout.Session, deps: WebhookDeps): Promise<boolean> {
+  if (s.metadata?.site !== deps.site) return false; // another brand on the shared account
   if (s.payment_status !== 'paid') return false; // completed-but-processing: async_payment_succeeded will follow
   const email = s.customer_details?.email ?? s.customer_email;
   const customer = idOf(s.customer);
@@ -95,6 +104,7 @@ async function fulfilSession(s: Stripe.Checkout.Session, deps: WebhookDeps): Pro
 }
 
 async function fulfilInvoice(inv: Stripe.Invoice, deps: WebhookDeps): Promise<boolean> {
+  if (invoiceSite(inv) !== deps.site) return false;
   const customer = idOf(inv.customer);
   const email = inv.customer_email;
   if (!customer || !email) return false;
@@ -106,7 +116,7 @@ async function fulfilInvoice(inv: Stripe.Invoice, deps: WebhookDeps): Promise<bo
     return true;
   }
   if (inv.billing_reason === 'manual' && plan && inv.id) {
-    // An invoice sent from the Dashboard for an agency deal. metadata.plan on the invoice marks it as a license sale.
+    // An invoice sent from the Dashboard. metadata.plan (with metadata.site) on the invoice marks it as a license sale.
     const key = await deps.license(`${customer}:${inv.id}`);
     await deps.fulfil({ type: 'license.issued', email, plan, key, customer, subject: inv.id });
     return true;
@@ -116,4 +126,8 @@ async function fulfilInvoice(inv: Stripe.Invoice, deps: WebhookDeps): Promise<bo
 
 function invoicePlan(inv: Stripe.Invoice): string {
   return inv.parent?.subscription_details?.metadata?.plan ?? inv.metadata?.plan ?? '';
+}
+
+function invoiceSite(inv: Stripe.Invoice): string {
+  return inv.parent?.subscription_details?.metadata?.site ?? inv.metadata?.site ?? '';
 }

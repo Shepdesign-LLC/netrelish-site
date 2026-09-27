@@ -9,6 +9,7 @@ function deps(over: Partial<WebhookDeps> = {}) {
     stripe: fakeStripe(), secret: SECRET,
     fulfil: vi.fn(async (f: Fulfilment) => { fulfilled.push(f); }),
     license: vi.fn(async (subject: string) => `NR-KEY-FOR-${subject}`),
+    site: 'netrelish.com',
     ...over,
   };
   return { d, fulfilled };
@@ -40,7 +41,7 @@ describe('handleStripeWebhook', () => {
 
   it('keys a one-time purchase on the payment intent', async () => {
     const { d, fulfilled } = deps();
-    await handleStripeWebhook(signedEvent('checkout.session.completed', { ...paidSession, mode: 'payment', subscription: null, payment_intent: 'pi_1', metadata: { plan: 'pro-lifetime' } }), d);
+    await handleStripeWebhook(signedEvent('checkout.session.completed', { ...paidSession, mode: 'payment', subscription: null, payment_intent: 'pi_1', metadata: { plan: 'pro-lifetime', site: 'netrelish.com' } }), d);
     expect(fulfilled[0]).toMatchObject({ type: 'license.issued', plan: 'pro-lifetime', subject: 'pi_1' });
   });
 
@@ -61,7 +62,7 @@ describe('handleStripeWebhook', () => {
 
   it('treats invoice.paid as a renewal only for subscription_cycle', async () => {
     const { d, fulfilled } = deps();
-    const inv = { id: 'in_1', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'subscription_cycle', hosted_invoice_url: 'https://invoice.stripe.com/i/x', metadata: {}, parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_1', metadata: { plan: 'pro-year' } } } };
+    const inv = { id: 'in_1', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'subscription_cycle', hosted_invoice_url: 'https://invoice.stripe.com/i/x', metadata: {}, parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_1', metadata: { plan: 'pro-year', site: 'netrelish.com' } } } };
     await handleStripeWebhook(signedEvent('invoice.paid', inv), d);
     expect(fulfilled).toEqual([{ type: 'license.renewed', email: 'a@b.co', plan: 'pro-year', customer: 'cus_1', subscription: 'sub_1' }]);
     const res = await handleStripeWebhook(signedEvent('invoice.paid', { ...inv, billing_reason: 'subscription_create' }, 'evt_2'), d);
@@ -69,26 +70,48 @@ describe('handleStripeWebhook', () => {
     expect(fulfilled).toHaveLength(1);
   });
 
-  it('issues a license for a Dashboard invoice tagged with a plan', async () => {
+  it('issues a license for a Dashboard invoice tagged with this site and a plan', async () => {
     const { d, fulfilled } = deps();
-    const inv = { id: 'in_agency', object: 'invoice', customer: 'cus_9', customer_email: 'ops@agency.co', billing_reason: 'manual', metadata: { plan: 'hof-agency' }, parent: null };
+    const inv = { id: 'in_team', object: 'invoice', customer: 'cus_9', customer_email: 'ops@studio.co', billing_reason: 'manual', metadata: { plan: 'pro-lifetime', site: 'netrelish.com' }, parent: null };
     await handleStripeWebhook(signedEvent('invoice.paid', inv), d);
-    expect(d.license).toHaveBeenCalledWith('cus_9:in_agency');
-    expect(fulfilled[0]).toMatchObject({ type: 'license.issued', plan: 'hof-agency', subject: 'in_agency', email: 'ops@agency.co' });
-    const res = await handleStripeWebhook(signedEvent('invoice.paid', { ...inv, metadata: {} }, 'evt_2'), d);
+    expect(d.license).toHaveBeenCalledWith('cus_9:in_team');
+    expect(fulfilled[0]).toMatchObject({ type: 'license.issued', plan: 'pro-lifetime', subject: 'in_team', email: 'ops@studio.co' });
+    const res = await handleStripeWebhook(signedEvent('invoice.paid', { ...inv, metadata: { site: 'netrelish.com' } }, 'evt_2'), d);
     expect(await res.json()).toEqual({ received: true, handled: false }); // an ordinary invoice, not a license
+  });
+
+  it('ignores every event that belongs to another brand on the shared account', async () => {
+    const { d } = deps();
+    const other = { plan: 'personal', site: 'hookedonfacets.com' };
+    const inv = { id: 'in_o', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'manual', metadata: other, parent: null };
+    const cases: [string, Record<string, unknown>][] = [
+      ['checkout.session.completed', { ...paidSession, metadata: other }],
+      ['checkout.session.async_payment_succeeded', { ...paidSession, metadata: other }],
+      ['checkout.session.async_payment_failed', { ...paidSession, payment_status: 'unpaid', metadata: other }],
+      ['invoice.paid', inv],
+      ['invoice.paid', { ...inv, billing_reason: 'subscription_cycle', metadata: {}, parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_o', metadata: other } } }],
+      ['invoice.payment_failed', inv],
+      ['customer.subscription.deleted', { id: 'sub_o', object: 'subscription', customer: 'cus_1', metadata: other }],
+      ['checkout.session.completed', { ...paidSession, metadata: {} }], // untagged: not ours either
+    ];
+    for (const [i, [type, obj]] of cases.entries()) {
+      const res = await handleStripeWebhook(signedEvent(type, obj, `evt_${i}`), d);
+      expect(await res.json()).toEqual({ received: true, handled: false });
+    }
+    expect(d.fulfil).not.toHaveBeenCalled();
+    expect(d.stripe.customers.retrieve).not.toHaveBeenCalled();
   });
 
   it('reports a failed renewal with the hosted invoice link', async () => {
     const { d, fulfilled } = deps();
-    const inv = { id: 'in_1', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'subscription_cycle', hosted_invoice_url: 'https://invoice.stripe.com/i/x', metadata: {}, parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_1', metadata: { plan: 'pro-year' } } } };
+    const inv = { id: 'in_1', object: 'invoice', customer: 'cus_1', customer_email: 'a@b.co', billing_reason: 'subscription_cycle', hosted_invoice_url: 'https://invoice.stripe.com/i/x', metadata: {}, parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_1', metadata: { plan: 'pro-year', site: 'netrelish.com' } } } };
     await handleStripeWebhook(signedEvent('invoice.payment_failed', inv), d);
     expect(fulfilled).toEqual([{ type: 'payment.failed', email: 'a@b.co', plan: 'pro-year', customer: 'cus_1', payUrl: 'https://invoice.stripe.com/i/x' }]);
   });
 
   it('ends the license when the subscription is deleted, looking the email up on the customer', async () => {
     const { d, fulfilled } = deps();
-    await handleStripeWebhook(signedEvent('customer.subscription.deleted', { id: 'sub_1', object: 'subscription', customer: 'cus_1', metadata: { plan: 'pro-year' } }), d);
+    await handleStripeWebhook(signedEvent('customer.subscription.deleted', { id: 'sub_1', object: 'subscription', customer: 'cus_1', metadata: { plan: 'pro-year', site: 'netrelish.com' } }), d);
     expect(d.stripe.customers.retrieve).toHaveBeenCalledWith('cus_1');
     expect(fulfilled).toEqual([{ type: 'license.ended', email: 'a@b.co', plan: 'pro-year', customer: 'cus_1', subscription: 'sub_1' }]);
   });

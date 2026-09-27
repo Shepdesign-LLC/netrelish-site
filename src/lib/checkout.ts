@@ -13,6 +13,8 @@ export interface CheckoutDeps {
   allowedHosts: string[];
   /** Origin the customer comes back to, e.g. https://netrelish.com — previews pass their own. */
   siteUrl: string;
+  /** Brand tag written to metadata.site; the webhook only acts on events carrying it. */
+  site: string;
 }
 
 export const SESSION_ID = /^cs_(live|test)_[A-Za-z0-9]+$/;
@@ -27,7 +29,7 @@ export async function handleCheckout(req: Request, deps: CheckoutDeps): Promise<
 
   const email = (fields.email ?? '').trim().toLowerCase();
   const site = deps.siteUrl.replace(/\/$/, '');
-  const tag = { plan: plan.id, site: new URL(site).hostname };
+  const tag = { plan: plan.id, site: deps.site };
 
   let session: Stripe.Checkout.Session;
   try {

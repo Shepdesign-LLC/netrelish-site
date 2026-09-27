@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { handleCheckout } from '../../lib/checkout';
 import { readEnv } from '../../lib/env';
-import { ALLOWED_HOSTS } from '../../lib/hosts';
+import { ALLOWED_HOSTS, SITE } from '../../lib/hosts';
 import { notConfigured } from '../../lib/http';
 import { PLANS } from '../../lib/stripe/catalog';
 import { stripeClient } from '../../lib/stripe/client';
@@ -22,5 +22,6 @@ export const POST: APIRoute = async ({ request }) => {
     catalog: PLANS,
     allowedHosts: ALLOWED_HOSTS,
     siteUrl: new URL(request.url).origin,
+    site: SITE,
   });
 };

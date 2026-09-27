@@ -8,15 +8,15 @@ const URL_ = 'https://netrelish.com/api/checkout';
 const catalog: Record<string, Plan> = {
   'pro-year': { id: 'pro-year', name: 'Pro yearly', mode: 'subscription', recurring: 'netrelish_pro_year' },
   'pro-lifetime': { id: 'pro-lifetime', name: 'Pro lifetime', mode: 'payment', oneTime: 'netrelish_pro_lifetime' },
-  'hof-personal': { id: 'hof-personal', name: 'HoF Personal', mode: 'subscription', recurring: 'hof_personal_year', oneTime: 'hof_personal_first_year' },
+  'pro-intro': { id: 'pro-intro', name: 'Pro, dearer first year', mode: 'subscription', recurring: 'pro_renewal', oneTime: 'pro_first_year' },
 };
-const ids: Record<string, string> = { netrelish_pro_year: 'price_year', netrelish_pro_lifetime: 'price_life', hof_personal_year: 'price_hp', hof_personal_first_year: 'price_hp1' };
+const ids: Record<string, string> = { netrelish_pro_year: 'price_year', netrelish_pro_lifetime: 'price_life', pro_renewal: 'price_ren', pro_first_year: 'price_first' };
 
 function deps(over: Partial<CheckoutDeps> = {}): CheckoutDeps {
   return {
     stripe: fakeStripe(),
     prices: vi.fn(async (keys: string[]) => Object.fromEntries(keys.map((k) => [k, ids[k]]))),
-    catalog, allowedHosts: ['netrelish.com', 'localhost'], siteUrl: 'https://netrelish.com',
+    catalog, allowedHosts: ['netrelish.com', 'localhost'], siteUrl: 'https://netrelish.com', site: 'netrelish.com',
     ...over,
   };
 }
@@ -80,16 +80,16 @@ describe('handleCheckout', () => {
 
   it('puts the one-time first-year line before the renewal price (renewals at half)', async () => {
     const d = deps();
-    await handleCheckout(formPost(URL_, { plan: 'hof-personal' }), d);
-    expect(created(d).line_items).toEqual([{ price: 'price_hp1', quantity: 1 }, { price: 'price_hp', quantity: 1 }]);
+    await handleCheckout(formPost(URL_, { plan: 'pro-intro' }), d);
+    expect(created(d).line_items).toEqual([{ price: 'price_first', quantity: 1 }, { price: 'price_ren', quantity: 1 }]);
     expect(created(d).mode).toBe('subscription');
   });
 
-  it('uses the preview origin it was given for the return urls', async () => {
+  it('uses the preview origin for the return urls but keeps the brand tag fixed', async () => {
     const d = deps({ siteUrl: 'https://netrelish-git-x.vercel.app/', allowedHosts: ['netrelish.com', 'vercel.app'] });
     await handleCheckout(formPost(URL_, { plan: 'pro-year' }, 'https://netrelish-git-x.vercel.app'), d);
     expect(created(d).cancel_url).toBe('https://netrelish-git-x.vercel.app/#pro');
-    expect(created(d).metadata).toEqual({ plan: 'pro-year', site: 'netrelish-git-x.vercel.app' });
+    expect(created(d).metadata).toEqual({ plan: 'pro-year', site: 'netrelish.com' });
   });
 
   it('502s when a price is missing or Stripe is down, never a silent success', async () => {

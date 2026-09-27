@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { bentoClient } from '../../../lib/bento';
 import { readEnv } from '../../../lib/env';
 import { bentoFulfiller } from '../../../lib/fulfil';
+import { SITE } from '../../../lib/hosts';
 import { json } from '../../../lib/http';
 import { hmacLicenser } from '../../../lib/license';
 import { stripeClient } from '../../../lib/stripe/client';
@@ -28,5 +29,6 @@ export const POST: APIRoute = async ({ request }) => {
     secret,
     fulfil: bentoFulfiller(bentoClient(bento, fetch)),
     license: hmacLicenser(licenseSecret),
+    site: SITE,
   });
 };

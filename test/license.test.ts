@@ -14,7 +14,7 @@ describe('hmacLicenser', () => {
     const a = await hmacLicenser('s3cret')('cus_1:sub_1');
     expect(await hmacLicenser('s3cret')('cus_1:sub_2')).not.toBe(a);
     expect(await hmacLicenser('other')('cus_1:sub_1')).not.toBe(a);
-    expect(await hmacLicenser('s3cret', 'HOF')('cus_1:sub_1')).toMatch(/^HOF-/);
+    expect(await hmacLicenser('s3cret', 'XY')('cus_1:sub_1')).toMatch(/^XY-/);
   });
 
   it('refuses an empty secret', () => {
