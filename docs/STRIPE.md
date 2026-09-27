@@ -22,10 +22,11 @@ The doc links under each decision are the ones it recommended.
 | Team / invoice sales | **Dashboard invoice** tagged `site` + `plan`, hosted invoice page, card or ACH | Rare; the API buys nothing here. [docs](https://docs.stripe.com/invoicing/ach-direct-debit) |
 | Reconciliation | **`invoice.paid` webhook** into our fulfilment | Our license system is in-house; `invoice.paid` is the canonical settled event. [docs](https://docs.stripe.com/invoicing/integration) |
 
-## The shared account rule
+## The brand tag
 
-The Stripe account (`Shepdesign`, `acct_1LZ5HPI31LsBskzX`) is shared across Shepdesign brands, and Stripe sends every
-account event to every endpoint that subscribes to it. So:
+NetRelish has its own Stripe account (`NetRelish`, `acct_1UKED1EhohwIPQev`, plus a sandbox `acct_1UKED7EXV0twADEp`).
+It was briefly on the shared Shepdesign account, and the brand tag that protected it there stays on as belt-and-braces,
+because Stripe sends every account event to every endpoint that subscribes to it:
 
 - Everything this site creates carries **`metadata.site = "netrelish.com"`** (`SITE` in `src/lib/hosts.ts`), on the Checkout
   Session and copied onto the subscription and its invoices.
@@ -87,12 +88,18 @@ Every row first requires `metadata.site = netrelish.com`; otherwise the event is
 
 ## Setup
 
-Already done on the live Shepdesign account (2026-09-27):
+Already done on the NetRelish account (2026-09-27). The account was not yet activated, so all of this is **test mode**;
+live mode needs the same two steps again once activation completes (`node scripts/stripe-seed.mjs` with the live key, and
+a live endpoint), because Stripe keeps test and live data apart.
 
-- **Catalog seeded**: product `NetRelish Pro` (`prod_VKsugJCePHxbWj`, tax code `txcd_10202000`, downloadable software,
-  personal use — confirm with your accountant) with `netrelish_pro_year` $39/yr and `netrelish_pro_lifetime` $99.
-- **Webhook endpoint** `we_1UKDFpI31LsBskzXVr4hAoYT` → `https://netrelish.com/api/stripe/webhook`, API version
-  `2026-08-26.dahlia` (matches the SDK), exactly the events in the table above.
+- **Catalog seeded** in test mode (`prod_VKvF0nrWT6uvx4`) and in the sandbox (`prod_VKvGEDG1ho0LOJ`): `NetRelish Pro`,
+  tax code `txcd_10202000` (downloadable software, personal use — confirm with your accountant), with
+  `netrelish_pro_year` $39/yr and `netrelish_pro_lifetime` $99.
+- **Test-mode webhook endpoint** `we_1UKFQGEhohwIPQevLe4uIA5u` → `https://netrelish.com/api/stripe/webhook`, API version
+  `2026-08-26.dahlia` (matches the SDK), exactly the events in the table above. Its signing secret is the Preview
+  `STRIPE_WEBHOOK_SECRET`; Production gets the live endpoint's.
+- On the Shepdesign account the earlier NetRelish prices are archived and its endpoint is disabled (delete it when
+  convenient); the archived product `prod_VKsugJCePHxbWj` can be archived from the Dashboard.
 
 Still to do:
 
@@ -134,14 +141,10 @@ Sandbox keys, `npm run dev`, `stripe listen --forward-to localhost:4321/api/stri
 purchase, and watch `async_payment_succeeded` land. Unit tests (`npm test`) cover every route with a fake Stripe client and
 the real signature code, including the other-brand events the webhook must ignore.
 
-## What the account already had
+## The Shepdesign account
 
-The Shepdesign account carries the care-plan catalog (Front Porch, Workshop, Studio, Corner Store, Main Street, Trading
-Post, Trailhead, Crossroads, Landmark) and one live webhook to a Supabase function for `checkout.session.completed` and
-`customer.subscription.*`, plus a disabled WordPress endpoint on an old API version (2022-08-01). None of that conflicts
-with this store: the endpoints are separate and the catalogs are keyed by slug and lookup key. Two things worth doing
-there anyway: delete the disabled WordPress endpoint, and check that the Supabase function also filters by a brand tag,
-because it now receives NetRelish `checkout.session.completed` events too.
+Care plans and the Supabase webhook live on the Shepdesign account and are untouched. With NetRelish on its own account
+nothing from this store reaches that endpoint any more.
 
 ## Later, if you want legendary
 
