@@ -107,11 +107,11 @@ Already done on the NetRelish account (2026-09-27), verified against the API:
 
 Still to do, in order:
 
-0. **Stripe Tax on live — blocking.** Live tax settings are `pending` with no head office, and Checkout is created with
-   `automatic_tax: { enabled: true }`, which the API rejects until Tax is active. Settings → Tax: head-office address, then
-   Activate; add registrations only where you have an obligation (Arizona today; with none, Stripe collects nothing and
-   monitors thresholds for free). The account default tax behavior is already *exclusive*, and new prices are seeded with
-   `tax_behavior: exclusive`, so nothing else is needed for the prices.
+0. **Stripe Tax on live — done** (verified 2026-09-27: status `active`, head office the Tucson address, default tax
+   behavior *exclusive*). Checkout is created with `automatic_tax: { enabled: true }`, which the API rejects while Tax is
+   pending, so this had to come first. With no registrations Stripe calculates zero tax and monitors thresholds for free;
+   add the Arizona registration under Settings → Tax → Registrations when you're registered there. New prices are seeded
+   with `tax_behavior: exclusive`, so nothing else is needed for the prices.
 1. **Catalog**: `STRIPE_SECRET_KEY=… node scripts/stripe-seed.mjs stripe/catalog.netrelish.json` — done on live; re-run to
    confirm (`=` lines) or after a catalog change. Tax code `txcd_10202000`, *Downloadable Software – Personal Use*; confirm
    with your accountant.
@@ -136,7 +136,6 @@ Still to do, in order:
    (name, support email, statement descriptor) so receipts say NetRelish. Payment methods: consider turning Klarna and
    Affirm off — buy-now-pay-later on a $39 license is odd.
 7. Merge, then set `PUBLIC_STORE_OPEN=true` on Production and redeploy. The buy buttons appear; nothing else changes.
-
 ### Selling by invoice
 
 Invoices → New. Set **metadata `site=netrelish.com`** and **`plan=pro-lifetime`** (or `pro-year` for a manually renewed
