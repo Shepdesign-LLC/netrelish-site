@@ -1,0 +1,107 @@
+/* Hooked on Facets — design tokens for Bricks.
+   Source of truth: BRAND.md in the hooked-on-facets repo.
+   Paste into Bricks → Settings → Custom code → Custom CSS, or enqueue from the child theme. */
+
+:root {
+  /* Brand */
+  --hof-purple:      #534AB7; /* Hook purple: primary actions, links */
+  --hof-coral:       #D85A30; /* Facet coral: accent chips only */
+  --hof-ink:         #2C2C2A; /* Deep ink */
+  --hof-cream:       #F1EFE8; /* Warm cream: page background */
+
+  /* Purple scale */
+  --hof-purple-50:   #EEEDFE;
+  --hof-purple-200:  #CECBF6;
+  --hof-purple-400:  #7F77DD;
+  --hof-purple-700:  #3C3489;
+
+  /* Coral scale */
+  --hof-coral-50:    #FAECE7;
+  --hof-coral-200:   #F5C4B3;
+
+  /* Ink scale */
+  --hof-ink-900:     #1A1A19;
+  --hof-ink-700:     #5F5E5A;
+  --hof-ink-500:     #888780;
+  --hof-ink-400:     #B4B2A9;
+  --hof-ink-300:     #D3D1C7;
+  --hof-ink-200:     #E6E3D9;
+  --hof-ink-50:      #F8F6EE;
+
+  /* Type */
+  --hof-font-sans:   "Geist", "Geist Sans", system-ui, -apple-system, sans-serif;
+  --hof-font-mono:   "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --hof-h1:          clamp(2.25rem, 5vw, 3.5rem);
+  --hof-h2:          clamp(1.75rem, 3.5vw, 2.5rem);
+  --hof-h3:          1.75rem;
+  --hof-h4:          1.375rem;
+  --hof-body:        1rem;
+  --hof-small:       0.875rem;
+  --hof-lh-body:     1.6;
+  --hof-lh-heading:  1.1;
+  --hof-tracking:    -0.02em;
+
+  /* Shape */
+  --hof-radius-xs:   4px;
+  --hof-radius-sm:   6px;
+  --hof-radius-md:   8px;
+  --hof-radius-lg:   12px;
+  --hof-radius-xl:   16px;
+  --hof-radius-pill: 999px;
+  --hof-border:      0.5px solid var(--hof-ink-200);
+  --hof-border-strong: 0.5px solid var(--hof-ink-300);
+
+  /* Space (4px base) */
+  --hof-s1: 4px;  --hof-s2: 8px;   --hof-s3: 12px; --hof-s4: 16px;
+  --hof-s6: 24px; --hof-s8: 32px;  --hof-s12: 48px; --hof-s16: 64px; --hof-s24: 96px;
+
+  /* Layout */
+  --hof-container: 1200px;
+  --hof-gutter: 24px;
+  --hof-section-y: var(--hof-s24);
+
+  /* Motion */
+  --hof-ease: cubic-bezier(.2,.8,.2,1);
+  --hof-dur: 160ms;
+}
+
+@media (max-width: 768px) {
+  :root { --hof-section-y: var(--hof-s16); --hof-gutter: 16px; }
+}
+
+/* Base ------------------------------------------------------------ */
+body { background: var(--hof-cream); color: var(--hof-ink-900); font-family: var(--hof-font-sans); line-height: var(--hof-lh-body); }
+h1, h2, h3, h4 { font-weight: 600; letter-spacing: var(--hof-tracking); line-height: var(--hof-lh-heading); color: var(--hof-ink-900); }
+h1 { font-size: var(--hof-h1); } h2 { font-size: var(--hof-h2); } h3 { font-size: var(--hof-h3); } h4 { font-size: var(--hof-h4); }
+a { color: var(--hof-purple); text-decoration: none; } a:hover { text-decoration: underline; }
+code, pre, kbd { font-family: var(--hof-font-mono); font-size: var(--hof-small); }
+
+/* Global classes (create these in Bricks with the same names) ------ */
+.hof-eyebrow { font-size: var(--hof-small); font-weight: 500; color: var(--hof-purple); letter-spacing: .02em; }
+
+.hof-chip { display: inline-flex; align-items: center; gap: var(--hof-s1); padding: 2px 10px; border-radius: var(--hof-radius-pill); border: var(--hof-border); font-size: var(--hof-small); background: var(--hof-ink-50); color: var(--hof-ink-700); }
+.hof-chip--purple { background: var(--hof-purple-50); border-color: var(--hof-purple-200); color: var(--hof-purple-700); }
+.hof-chip--coral  { background: var(--hof-coral-50);  border-color: var(--hof-coral-200);  color: var(--hof-coral); }
+
+.hof-card { background: #fff; border: var(--hof-border); border-radius: var(--hof-radius-lg); padding: var(--hof-s6); }
+.hof-card--featured { border: 1px solid var(--hof-purple); }
+
+.hof-stat { display: grid; gap: var(--hof-s1); }
+.hof-stat__value { font-size: var(--hof-h2); font-weight: 600; letter-spacing: var(--hof-tracking); }
+.hof-stat__label { color: var(--hof-ink-700); font-size: var(--hof-small); }
+
+.hof-btn { display: inline-flex; align-items: center; gap: var(--hof-s2); padding: 12px 20px; border-radius: var(--hof-radius-md); border: var(--hof-border-strong); font-weight: 500; line-height: 1; transition: background var(--hof-dur) var(--hof-ease), border-color var(--hof-dur) var(--hof-ease); box-shadow: none; }
+.hof-btn--primary { background: var(--hof-purple); border-color: var(--hof-purple); color: #fff; }
+.hof-btn--primary:hover { background: var(--hof-purple-700); border-color: var(--hof-purple-700); text-decoration: none; }
+.hof-btn--secondary { background: transparent; color: var(--hof-ink-900); }
+.hof-btn--secondary:hover { border-color: var(--hof-ink-500); text-decoration: none; }
+
+.hof-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--hof-s6); }
+.hof-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--hof-s6); }
+@media (max-width: 992px) { .hof-grid-3, .hof-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 478px) { .hof-grid-3, .hof-grid-4 { grid-template-columns: 1fr; } }
+
+.hof-divider { border: 0; border-top: var(--hof-border); margin: var(--hof-s12) 0; }
+
+/* Brand rules: no shadows, no gradients. */
+.hof-card, .hof-btn, .hof-chip { box-shadow: none !important; background-image: none !important; }
