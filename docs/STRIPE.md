@@ -98,7 +98,9 @@ Already done on the NetRelish account (2026-09-27), verified against the API:
 - **Live**: `NetRelish Pro` `prod_VKvzjV4EMMjL9N` with `netrelish_pro_year` (`price_1UKG7LEhohwIPQevG5HGHohl`, $39/yr) and
   `netrelish_pro_lifetime` (`price_1UKG7OEhohwIPQevUydSQqjt`, $99); webhook endpoint `we_1UKG78EhohwIPQevDQ6fpVG2` →
   `https://netrelish.com/api/stripe/webhook`, API `2026-08-26.dahlia`, exactly the events in the table above. Its signing
-  secret is the Production `STRIPE_WEBHOOK_SECRET`.
+  secret is the Production `STRIPE_WEBHOOK_SECRET`. Portal configuration `bpc_1UKYKvEhohwIPQevNVyVAP9T` (2026-09-28, the
+  account default; login page `https://billing.stripe.com/p/login/fZu8wP8KIc0pdeTaeDcs800`) — the Production
+  `STRIPE_PORTAL_CONFIG`.
 - **Test mode** (per the first pass): `prod_VKvF0nrWT6uvx4` and endpoint `we_1UKFQGEhohwIPQevLe4uIA5u` → the same URL.
 - **Sandbox**: `prod_VKuTWVPG5f2oXz`, prices `price_1UKEebEXV0twADEppOBM0bxo` / `price_1UKEedEXV0twADEp59STJU27`, Stripe Tax
   **active**, portal configuration `bpc_1UKEeMEXV0twADEpwStxNaAY` (login page
@@ -118,10 +120,11 @@ Still to do, in order:
 2. **Webhook endpoint**: `STRIPE_SECRET_KEY=… node scripts/stripe-webhook.mjs https://netrelish.com/api/stripe/webhook` —
    done on live. It prints `STRIPE_WEBHOOK_SECRET` **once** at creation; if the secret from the first pass is lost, roll it
    from the endpoint page.
-3. **Customer Portal**: `STRIPE_SECRET_KEY=… node scripts/stripe-portal.mjs` — **not yet on live**. Cancel at period end
-   (with a reason), card update, invoice history, name/address/tax-id edits, no plan switching, login page on. It prints
-   `STRIPE_PORTAL_CONFIG` and the **portal login page URL** — put that URL in the license email; it is the "lost my link"
-   path, because the `Manage billing` button on the done page only works for 24 hours after purchase.
+3. **Customer Portal**: `STRIPE_SECRET_KEY=… node scripts/stripe-portal.mjs` — done on live (re-run prints the `=` line;
+   `--update` rewrites it). Cancel at period end (with a reason), card update, invoice history, name/address/tax-id edits,
+   no plan switching, login page on. It prints `STRIPE_PORTAL_CONFIG` and the **portal login page URL** — put that URL in
+   the license email; it is the "lost my link" path, because the `Manage billing` button on the done page only works for
+   24 hours after purchase.
 4. **Vercel env** on `netrelish` (Sensitive): `STRIPE_SECRET_KEY` (live restricted key on Production, sandbox key on
    Preview), `STRIPE_WEBHOOK_SECRET` (live endpoint's on Production, the sandbox endpoint's on Preview),
    `STRIPE_PORTAL_CONFIG`, `LICENSE_SECRET` (`openssl rand -base64 48`; a **different** value per environment so a sandbox
