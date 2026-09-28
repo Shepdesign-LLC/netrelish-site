@@ -60,6 +60,9 @@ const storeOpen = import.meta.env.PUBLIC_STORE_OPEN === 'true';
   const why = q.get('checkout') ?? q.get('portal');
   if (msg && why) {
     msg.dataset.tone = 'error';
-    msg.textContent = why === 'invalid' ? 'That plan doesn’t exist.' : 'Couldn’t reach the store — try again in a minute.';
+    msg.textContent =
+      why === 'invalid' ? 'That plan doesn’t exist.'
+      : why === 'expired' ? 'That billing link has expired — use the one in your license email.'
+      : 'Couldn’t reach the store — try again in a minute.';
   }
 </script>

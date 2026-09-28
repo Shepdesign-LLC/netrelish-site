@@ -7,8 +7,8 @@
       "description": "Reseal and diff, provenance export, jar bundles, unlimited Recipes, semantic search.",
       "tax_code": "txcd_10202000",
       "prices": [
-        { "lookup_key": "netrelish_pro_year", "nickname": "Pro, yearly", "currency": "usd", "unit_amount": 3900, "recurring": { "interval": "year" } },
-        { "lookup_key": "netrelish_pro_lifetime", "nickname": "Pro, lifetime", "currency": "usd", "unit_amount": 9900 }
+        { "lookup_key": "netrelish_pro_year", "nickname": "Pro, yearly", "currency": "usd", "unit_amount": 3900, "tax_behavior": "exclusive", "recurring": { "interval": "year" } },
+        { "lookup_key": "netrelish_pro_lifetime", "nickname": "Pro, lifetime", "currency": "usd", "unit_amount": 9900, "tax_behavior": "exclusive" }
       ]
     }
   ]

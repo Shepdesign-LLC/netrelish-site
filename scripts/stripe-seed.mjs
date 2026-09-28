@@ -34,7 +34,8 @@ for (const p of catalog.products) {
     if (dry || !product) { console.log(`    + price ${pr.lookup_key} would be created: ${desc}`); continue; }
     const price = await stripe.prices.create({
       product: product.id, lookup_key: pr.lookup_key, transfer_lookup_key: true, nickname: pr.nickname,
-      currency: pr.currency, unit_amount: pr.unit_amount, ...(pr.recurring ? { recurring: pr.recurring } : {}),
+      currency: pr.currency, unit_amount: pr.unit_amount, tax_behavior: pr.tax_behavior ?? 'exclusive', // Stripe Tax needs one; unspecified prices are refused by Checkout unless the account has a default
+      ...(pr.recurring ? { recurring: pr.recurring } : {}),
     });
     console.log(`    + price ${pr.lookup_key} created (${price.id}): ${desc}`);
   }
