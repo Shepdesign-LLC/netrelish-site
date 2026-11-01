@@ -8,19 +8,19 @@ const storeOpen = import.meta.env.PUBLIC_STORE_OPEN === 'true';
   <h2>Pro turns saved pages into evidence.</h2>
   <div class="pro__grid">
     <div><h3>Reseal and diff</h3><p class="muted">Seal the same page again later and see exactly what changed — prices, terms, copy, anything.</p></div>
-    <div><h3>Provenance</h3><p class="muted">Every seal carries a signed timestamp and a fingerprint you can export as proof you saw it, when you saw it.</p></div>
-    <div><h3>Jar bundles</h3><p class="muted">Share a whole jar over AirDrop. No account, no server, nothing to sign up for on the other end.</p></div>
-    <div><h3>Unlimited Recipes</h3><p class="muted">And semantic search across everything you’ve sealed, so “that thing about hinge tolerances” is findable.</p></div>
+    <div><h3>Provenance</h3><p class="muted">Every seal carries a signed timestamp and a fingerprint you can export as proof of exactly what you sealed, and when.</p></div>
+    <div><h3>Jar bundles <span class="quiet">· coming in 1.1</span></h3><p class="muted">Share a whole jar as one file. No account, no server, nothing to sign up for on the other end.</p></div>
+    <div><h3>Semantic search <span class="quiet">· coming in 1.1</span></h3><p class="muted">Search by meaning across everything you’ve sealed, so “that thing about hinge tolerances” is findable. Unlimited Recipes come with it.</p></div>
   </div>
   <div class="plans">
     <div class="plan">
       <div class="plan__name">Free</div><div class="plan__price tnum">$0</div><div class="quiet plan__per">forever</div>
-      <ul class="plan__list"><li>Capture, jars, seal, full-text search</li><li>3 Recipes</li><li>Share extension, Spotlight, Shortcuts</li></ul>
+      <ul class="plan__list"><li>Capture, jars, seal, full-text search</li><li>3 Recipes</li><li>Share extension and Shortcuts</li></ul>
       <a class="btn btn--secondary" href="#join">Join the beta</a>
     </div>
     <div class="plan">
       <div class="plan__name">Pro</div><div class="plan__price tnum">$39</div><div class="quiet plan__per">per year, or $99 once</div>
-      <ul class="plan__list"><li>Everything in Free</li><li>Reseal and diff, provenance export</li><li>Jar bundles, unlimited Recipes</li><li>Semantic search</li></ul>
+      <ul class="plan__list"><li>Everything in Free</li><li>Reseal and diff, provenance export</li><li>Coming in 1.1: Jar bundles, unlimited Recipes, semantic search</li></ul>
       {storeOpen ? (
         <form class="buy" method="post" action="/api/checkout">
           <button class="btn btn--primary" type="submit" name="plan" value="pro-year">Buy Pro · $39/yr</button>
@@ -32,7 +32,7 @@ const storeOpen = import.meta.env.PUBLIC_STORE_OPEN === 'true';
     </div>
   </div>
   {storeOpen && <p class="quiet buy__msg" role="status" aria-live="polite" data-checkout-msg></p>}
-  <p class="quiet pro__fine">One price. No seats, no tiers, no telemetry. Buy once, use forever.</p>
+  <p class="quiet pro__fine">One price. No seats, no telemetry. Buy once, use forever.</p>
 </div></section>
 <style>
   .pro { background: var(--nr-surface-2); }
