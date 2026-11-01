@@ -20,7 +20,7 @@ export const now: Entry[] = [
   { name: 'Bench', detail: 'WebKit browser with a tab strip and address bar. Links that open a new window or popup work' },
   { name: 'Shelf', detail: 'The Jar rail, ⌘1–9 to switch' },
   { name: 'Jars', detail: 'Projects with a shelf life. Each Jar is its own browsing profile: separate cookies, logins, storage' },
-  { name: 'Smart Jars', detail: 'Brine (Unsorted), Today, Sealed and Sinking soon fill themselves. ⌘⇧1–4' },
+  { name: 'Smart Jars', detail: 'Brine (Unsorted), Today, Sealed and Sinking soon fill themselves. ⌃⌘1–4' },
   { name: 'Brine', detail: 'Where idle tabs sink after their Jar’s shelf life. Sunk pages come back where you left them: scroll position and back and forward. Pinned tabs never sink' },
   { name: 'Seal', detail: 'Preserve-and-close: web archive snapshot, full-text indexed, dated' },
   { name: 'Search', detail: 'Full-text over everything sealed, offline. Results open the saved copy' },
