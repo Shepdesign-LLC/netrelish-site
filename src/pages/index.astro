@@ -13,16 +13,16 @@ import Pickle from '../components/Pickle.astro';
 import Pro from '../components/Pro.astro';
 import Questions from '../components/Questions.astro';
 ---
-<Base title="NetRelish — Keep the pages that matter" description="NetRelish is a Mac browser with a pantry. Save any page with one key, sort it into jars, and seal the ones you’ll need again — searchable, summarized on your Mac, offline.">
+<Base title="NetRelish — Keep the pages that matter" description="NetRelish is a Mac browser with a pantry. Save any page with one key, keep each project in its own jar, and seal the ones you’ll need again — searchable and offline, on your Mac.">
   <main>
     <Hero><SealStage /></Hero>
 
     <Row id="how" eyebrow="Capture" h2="One key to save anything.">
-      <p>Press <kbd>⌘</kbd><kbd>D</kbd> on any page, or share from any app. It lands in Brine, right where you can see it. Nothing gets lost in a bookmarks folder again.</p>
+      <p>Press <kbd>⌘</kbd><kbd>D</kbd> on any page, or share it from Safari or any app with a share sheet. It lands in Brine, right where you can see it. Nothing gets lost in a bookmarks folder again.</p>
       <Tray slot="mock" />
     </Row>
     <Row eyebrow="Sort" h2="Jars, not folders." flip>
-      <p>Drag a saved page onto a jar on the Shelf. Jars are where your projects live — clients, research, reading, whatever you’re working on this month. Every jar is its own profile: its own cookies, its own logins.</p>
+      <p>Pick a jar on the Shelf and browse in it. Everything you seal there stays in that jar. Jars are where your projects live — clients, research, reading, whatever you’re working on this month. Every jar is its own profile: its own cookies, its own logins.</p>
       <p>Switch with <kbd>⌘</kbd><kbd>1</kbd> through <kbd>⌘</kbd><kbd>9</kbd>.</p>
       <Shelf slot="mock" />
     </Row>
@@ -32,11 +32,11 @@ import Questions from '../components/Questions.astro';
       <Inspector slot="mock" />
     </Row>
     <Row eyebrow="Search" h2="Search what you kept, not the whole internet." flip>
-      <p>Every sealed page is indexed in full. Find it from Ask the Pantry or straight from Spotlight.</p>
+      <p>Every sealed page is indexed in full, on your Mac. Press <kbd>⌘</kbd><kbd>K</kbd> to find it, or search from Shortcuts. A sealed result opens the saved copy, so it works offline.</p>
       <PantryResults slot="mock" />
     </Row>
-    <Row eyebrow="Recipes" h2="Workflows that run on save.">
-      <p>A Recipe is a short list of steps: label it, move it, summarize it, export it. Attach one to a jar and it runs on every seal.</p>
+    <Row eyebrow="Recipes" h2="Workflows that run when you seal.">
+      <p>NetRelish comes with a few Recipes, like Seal &amp; Summarize, which summarizes the page on your Mac. Pick one for a jar and it runs every time you seal there.</p>
       <p>Every Recipe is a Shortcut, so Siri and the rest of your Mac can run it too.</p>
       <Recipe slot="mock" />
     </Row>

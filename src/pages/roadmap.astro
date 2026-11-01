@@ -1,0 +1,106 @@
+---
+import Base from '../layouts/Base.astro';
+import { now, next, later, never, changelog, type Entry } from '../lib/roadmap';
+
+const columns: { id: string; name: string; tag?: string; entries: Entry[] }[] = [
+  { id: 'now', name: 'Now', tag: '1.0 · Mac App Store', entries: now },
+  { id: 'next', name: 'Next', entries: next },
+  { id: 'later', name: 'Later', entries: later },
+];
+---
+<Base title="NetRelish — Roadmap" description="What NetRelish 1.0 ships, what comes after, what it will never do, and what has actually landed so far.">
+  <main>
+    <section class="section road"><div class="wrap">
+      <p class="eyebrow">Roadmap</p>
+      <h1 class="road__title">Where NetRelish is going.</h1>
+      <p class="muted road__lede">This moves when we ship, not when we promise. No dates on purpose. The <a href="#changelog">changelog</a> records what has actually landed.</p>
+
+      <div class="cols">
+        {columns.map((col) => (
+          <div class="col" aria-labelledby={`col-${col.id}`}>
+            <div class="col__head">
+              <h2 id={`col-${col.id}`}>{col.name}</h2>
+              {col.tag && <span class="col__tag">{col.tag}</span>}
+            </div>
+            <ul class="items">
+              {col.entries.map((e) => (
+                <li>
+                  <span class="items__name">{e.name}{e.pro && <span class="pro-mark">Pro</span>}</span>
+                  <span class="items__detail muted">{e.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div class="never">
+        <h2>Not on the roadmap</h2>
+        <p class="muted">These aren’t “later.” They’re never, and the architecture depends on it.</p>
+        <ul>{never.map((n) => <li>{n}</li>)}</ul>
+      </div>
+    </div></section>
+
+    <section class="section log" id="changelog"><div class="wrap">
+      <p class="eyebrow">Changelog</p>
+      <h2>What has actually landed.</h2>
+      <p class="muted road__lede">Newest first. The Mac app hasn’t had a public build yet, so everything since the rewrite sits under Unreleased until 1.0.</p>
+
+      {changelog.map((r) => (
+        <article class="release">
+          <div class="release__meta">
+            <div class="release__label">{r.label}</div>
+            <div class="quiet release__when">{r.when}</div>
+          </div>
+          <div class="release__body">
+            <h3>{r.title}</h3>
+            {r.intro?.map((p) => <p class="muted">{p}</p>)}
+            {r.added && (<><h4>Added</h4><ul>{r.added.map((a) => <li>{a}</li>)}</ul></>)}
+            {r.still && (<><h4>Still to come before 1.0</h4><ul>{r.still.map((a) => <li>{a}</li>)}</ul></>)}
+            {r.removed && (<><h4>Removed</h4><ul>{r.removed.map((a) => <li>{a}</li>)}</ul></>)}
+          </div>
+        </article>
+      ))}
+    </div></section>
+  </main>
+</Base>
+<style>
+  .road { border-top: 0; }
+  .road__title { font-size: var(--fs-3xl); font-weight: 600; line-height: var(--lh-tight); letter-spacing: -0.02em; }
+  .road__lede { max-width: 62ch; margin-top: var(--sp-3); }
+
+  .cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: var(--sp-8); margin-top: var(--sp-10); align-items: start; }
+  .col__head { display: flex; align-items: baseline; gap: var(--sp-3); padding-bottom: var(--sp-3); border-bottom: var(--hairline) solid var(--nr-hairline); flex-wrap: wrap; }
+  .col__head h2 { font-size: var(--fs-xl); }
+  .col__tag {
+    font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--nr-fg-2);
+    padding: 1px var(--sp-2); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-1);
+  }
+  .items { list-style: none; margin: 0; padding: 0; }
+  .items li { display: grid; gap: 2px; padding: var(--sp-3) 0; border-bottom: var(--hairline) solid var(--nr-hairline); }
+  .items__name { font-weight: 600; font-size: var(--fs-lg); }
+  .items__detail { font-size: var(--fs-md); }
+  .pro-mark {
+    font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--nr-fg-3); margin-left: var(--sp-2); vertical-align: 1px;
+  }
+
+  .never { margin-top: var(--sp-12); padding: var(--sp-6) var(--sp-8); border: var(--hairline) solid var(--nr-hairline); border-radius: var(--r-3); background: var(--nr-surface-2); }
+  .never h2 { font-size: var(--fs-xl); }
+  .never p { margin-top: var(--sp-2); }
+  .never ul { margin: var(--sp-4) 0 0; padding-left: 18px; display: grid; gap: var(--sp-1); }
+
+  .release { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--sp-8); padding: var(--sp-8) 0; border-bottom: var(--hairline) solid var(--nr-hairline); }
+  .release:first-of-type { margin-top: var(--sp-6); border-top: var(--hairline) solid var(--nr-hairline); }
+  .release__label { font-family: var(--font-mono); font-weight: 600; }
+  .release__when { font-size: var(--fs-md); margin-top: var(--sp-1); }
+  .release__body { display: grid; gap: var(--sp-3); min-width: 0; }
+  .release__body h4 {
+    margin: var(--sp-3) 0 0; font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--nr-fg-3);
+  }
+  .release__body ul { margin: 0; padding-left: 18px; display: grid; gap: var(--sp-2); font-size: var(--fs-lg); }
+
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .release { grid-template-columns: 1fr; gap: var(--sp-3); } }
+</style>
