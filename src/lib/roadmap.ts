@@ -3,6 +3,8 @@
 // Rule from the voice guide: never claim more than is true. "Now" is what 1.0 ships,
 // whether or not it is built yet; the changelog says only what has actually landed.
 
+import { latestTag, released, unreleased } from './changelog.generated';
+
 export interface Entry { name: string; detail: string; pro?: boolean }
 
 export interface Release {
@@ -62,32 +64,22 @@ export const never: string[] = [
   'Analytics SDKs in the app',
 ];
 
+// The previews and what's merged since come from the app repo by themselves
+// (scripts/sync-changelog.mjs, run daily by .github/workflows/sync-changelog.yml).
+// "still" is the one hand-kept list: what 1.0 needs that hasn't landed yet.
 export const changelog: Release[] = [
   {
     label: 'Unreleased',
-    when: 'In progress for 1.0',
-    title: 'Works in the app today',
-    added: [
-      'Bench: tabs and an address bar on a native WKWebView. ⌘T for a new tab, ⌘W to close one',
-      'Links that open a new window or popup open as a new tab in the same Jar',
-      'Shelf: the Jar rail, ⌘1–9 to switch, relish tint on the active Jar',
-      'Jars as browsing profiles: each Jar owns its own cookies, logins and storage',
-      'Brine: idle tabs sink after their Jar’s shelf life, and Restore brings them back where you left them. Pinned tabs never sink',
-      'Capture with ⌘D, into Brine',
-      'Seal with ⌘S: preserve-and-close a page as a web archive snapshot, full-text indexed',
-      '⌘K palette: capture, seal, jump to a Jar, find anything in your Pantry. A sealed result opens its saved copy, read only',
-      'The saved copy stays as it was sealed: nothing on it runs, and a link you click opens the live page in a new tab',
-      'Fill a form from your Me card with ⌘⇧F. The card stays in your Mac’s Keychain',
-      'Capture in the Shortcuts app. Seal is there too, but for now it only marks a captured page as sealed; the full Seal, with its snapshot, comes before 1.0',
-    ],
+    when: latestTag ? `Since ${latestTag.replace(/^v/, '')}` : 'In progress for 1.0',
+    title: 'Merged, in the next preview',
+    added: unreleased.length ? unreleased : undefined,
     still: [
-      'Smart Jars, reader view, the Panel, the Share extension, a full Seal from Shortcuts and the rest of Shortcuts',
-      'Built-in Recipes that run when you Seal',
-      'Pro: reseal & diff and provenance export',
-      'StoreKit 2 purchase and restore; a license key for the direct-download build',
+      'A license key for the direct-download build',
       'Sandboxing, privacy manifest and App Store review hardening',
+      'Accessibility and onboarding',
     ],
   },
+  ...released,
   {
     label: 'Rewrite',
     when: 'September 2026',

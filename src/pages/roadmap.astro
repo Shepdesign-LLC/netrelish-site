@@ -44,7 +44,7 @@ const columns: { id: string; name: string; tag?: string; entries: Entry[] }[] = 
     <section class="section log" id="changelog"><div class="wrap">
       <p class="eyebrow">Changelog</p>
       <h2>What has actually landed.</h2>
-      <p class="muted road__lede">Newest first. The Mac app hasn’t had a public build yet, so everything since the rewrite sits under Unreleased until 1.0.</p>
+      <p class="muted road__lede">Newest first. Each preview is a signed direct download; what’s merged since the last one sits under Unreleased. This list updates itself from the app’s own release notes.</p>
 
       {changelog.map((r) => (
         <article class="release">
