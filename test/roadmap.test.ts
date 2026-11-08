@@ -33,3 +33,18 @@ describe('roadmap', () => {
     expect(changelog[0].label).toBe('Unreleased');
   });
 });
+
+describe('synced changelog', () => {
+  it('lists published previews after Unreleased, newest first', () => {
+    const labels = changelog.map((r) => r.label);
+    const previews = labels.filter((l) => /^\d+\.\d+\.\d+/.test(l));
+    expect(labels.indexOf(previews[0])).toBe(1);
+    const sorted = [...previews].sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+    expect(previews).toEqual(sorted);
+  });
+
+  it('keeps the hand-written history after the previews', () => {
+    expect(changelog.at(-2)?.label).toBe('Rewrite');
+    expect(changelog.at(-1)?.label).toBe('Legacy');
+  });
+});
