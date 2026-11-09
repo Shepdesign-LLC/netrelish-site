@@ -8,11 +8,10 @@
 // Unreleased: the feat and fix commits on main since the newest tag, in plain words.
 // .github/workflows/sync-changelog.yml runs this daily and opens a pull request when it changes.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 
 const app = process.argv[2];
-if (!app || !existsSync(join(app, 'docs/releases'))) {
+if (!app) {
   console.error('usage: node scripts/sync-changelog.mjs <NetRelish checkout>');
   process.exit(1);
 }
@@ -42,8 +41,13 @@ const plain = (s) => s
   .trim()
   .replace(/[.:]$/, '');
 
-function readRelease(tag) {
-  const md = readFileSync(join(app, 'docs/releases', `${tag}.md`), 'utf8');
+function readRelease({ tag, mode, type, oid }) {
+  // A symlink is also a Git blob, but its mode is 120000. Never read a
+  // release through the checkout filesystem, where it could reach runner secrets.
+  if (type !== 'blob' || !['100644', '100755'].includes(mode)) {
+    throw new Error(`Release note must be a regular Git blob: ${tag}.md`);
+  }
+  const md = execFileSync('git', ['-C', app, 'cat-file', 'blob', oid], { encoding: 'utf8' });
   const blocks = md.split(/\n(?=## )/);
   const intro = blocks[0].split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).slice(0, 1).map(plain);
   const added = [];
@@ -60,10 +64,18 @@ function readRelease(tag) {
   return { label: tag.replace(/^v/, ''), when, title: `Preview ${tag.replace(/^v/, '')}`, intro, added: added.map(plain) };
 }
 
-const files = readdirSync(join(app, 'docs/releases'))
-  .map((f) => f.replace(/\.md$/, ''))
-  .filter((t) => /^v\d+\.\d+\.\d+/.test(t) && tags.has(t))
-  .sort(newestFirst);
+// Git resolves this path only through trees, never filesystem symlinks. If
+// docs or releases is a symlink (or missing), ls-tree fails before we write output.
+// NUL delimiters keep filenames from being interpreted as extra tree entries.
+const files = git('ls-tree', '-z', 'HEAD:docs/releases').split('\0').filter(Boolean)
+  .map((entry) => {
+    const tab = entry.indexOf('\t');
+    const [mode, type, oid] = entry.slice(0, tab).split(' ');
+    const name = entry.slice(tab + 1);
+    return { mode, type, oid, tag: name.endsWith('.md') ? name.slice(0, -3) : '' };
+  })
+  .filter(({ tag }) => /^v\d+\.\d+\.\d+/.test(tag) && tags.has(tag))
+  .sort((a, b) => newestFirst(a.tag, b.tag));
 const released = files.map(readRelease);
 
 // Commits on main since the newest tag. "feat(pro): Reseal & diff — seal a page again (#74)"
