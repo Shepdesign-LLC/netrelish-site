@@ -25,11 +25,17 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@types/node": "^22.20.3",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "typescript": "^6.0.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.1.0"
   },
   "overrides": {
-    "path-to-regexp@>=6.0.0 <6.3.0": "6.3.0"
+    "path-to-regexp@>=6.0.0 <6.3.0": "6.3.0",
+    "@vercel/nft": {
+      "glob": "^14.0.4"
+    },
+    "@rolldown/binding-wasm32-wasi": {
+      "@emnapi/runtime": "1.11.3"
+    }
   }
 }
