@@ -9,6 +9,7 @@ Vercel project: `netrelish` in team Shepdesign (`shepdesign-projects`). One-time
    `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY`, `BENTO_SITE_UUID` — from Bento → Settings → API keys. Mark them Sensitive.
    For the store: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `LICENSE_SECRET` (Sensitive), `STRIPE_PORTAL_CONFIG`, and `PUBLIC_STORE_OPEN=true`
    on Production only when it's time to sell. Setup order is in `docs/STRIPE.md`.
+   For the license relay: `CREEM_API_KEY` (Sensitive), and `CREEM_API_BASE` only for test mode. See "License relay" below.
 5. **Domain.** Settings → Domains → Add `netrelish.com` (and `www.netrelish.com`, redirect to apex). At the registrar add the records Vercel shows (typically `A @ → 76.76.21.21` and `CNAME www → cname.vercel-dns.com`; Vercel's page is the source of truth).
 6. **Web Analytics.** Settings → Analytics → enable Web Analytics. The site already injects the
    script (`webAnalytics: { enabled: true }` on the adapter); without the dashboard toggle the
@@ -32,6 +33,95 @@ same-origin path was never going to trip it — and doesn't. (The `astro dev` bu
 what a visitor's browser is made to contact, and on that test Web Analytics is clean: no cookie,
 no identifier, no cross-site tracking. The data does reach Vercel, who already host the site and
 serve every request, and `privacy.astro` says so in plain words.
+
+## License relay (`/api/license`)
+
+The direct build of the app sells Pro through Creem. Creem's license API needs the store's secret key, so the app
+can't call it. `/api/license` holds the key and passes on a license key and an instance name or id. Nothing else
+reaches it, and it logs only the action and the status Creem returned.
+
+**Set it up.** Vercel → Project → Settings → Environment Variables. The live key goes on **Production only**:
+
+| Variable | Production | Preview |
+| --- | --- | --- |
+| `CREEM_API_KEY` (Sensitive) | the live secret key | a Creem **test-mode** key |
+| `CREEM_API_BASE` | unset | `https://test-api.creem.io` |
+| `CREEM_PRODUCT_ID` | the NetRelish Pro product id(s), once known | the same, from test mode |
+
+- Without `CREEM_API_KEY`, the route answers `503`.
+- The route enforces the split itself, from `VERCEL_ENV`: production answers only through Creem's live host, and any
+  other deployment only through the test host. So a preview build of any branch can never spend the live key. Any
+  other `CREEM_API_BASE` value turns the route off (`503`), so a typo can't send keys to another host.
+- `CREEM_PRODUCT_ID` (one id, or a comma-separated list for yearly and lifetime): when set, only a license naming one
+  of these products counts. Another product's key is answered `404 invalid`, and its activation is given back. A
+  reply naming no product at all is no answer (`502`), and the log says `license: creem reply names no product`. Set
+  it, then do one test-mode activation: if that line shows up, Creem's reply doesn't carry the field, so unset it.
+- Keep Vercel Deployment Protection on for previews.
+
+Redeploy after changing any of these.
+
+**Contract.** `POST`, `content-type: application/json`, body at most 2 KB. Exactly one of:
+
+```json
+{ "action": "activate",   "key": "…", "instance_name": "…" }
+{ "action": "validate",   "key": "…", "instance_id": "…" }
+{ "action": "deactivate", "key": "…", "instance_id": "…" }
+```
+
+`key` is 8–128 of `A–Z a–z 0–9 _ -`. `instance_name` is 1–64 printable ASCII characters. `instance_id` is 1–128 of
+`A–Z a–z 0–9 _ -`. A missing field, an extra field, or an unknown action is a `400`.
+
+| Reply | Means |
+| --- | --- |
+| `200 {"status", "instance_id", "expires_at"}` | Creem answered. `status` is `active`, `inactive`, `expired`, `disabled` or `unknown`. The other two are strings or `null`; an `instance_id` outside the pattern above comes back `null`. |
+| `404 {"status":"invalid"}` | Creem doesn't know that key or instance. |
+| `409 {"status":"rejected"}` | On `activate`, any other Creem `4xx`: a refusal, such as the activation limit. On `validate` and `deactivate`, only Creem `409` or `410`. |
+| `429 {"error":"rate_limited"}` | Over a limit (per IP, per key, or a global budget), or Creem is throttling us. No verdict; `retry-after` says when to try. |
+| `502 {"error":"upstream"}` | Creem failed, timed out after 10 s, or sent something we can't read. Also Creem `401`, `403` and `429`, which are about our key or our rate, and any other `4xx` on `validate` or `deactivate`. None of these is a verdict on the buyer's license, so the app changes nothing and the person tries again. |
+| `503 {"error":"not_configured"}` | `CREEM_API_KEY` is unset or `CREEM_API_BASE` is not a Creem host. |
+| `400`, `405`, `413`, `415` | Bad body, wrong method, body over 2 KB, wrong content type. |
+
+Every reply is JSON with `cache-control: no-store`. There are no CORS headers: the caller is the app, not a browser.
+
+**Rate-limit it.** The route is public, and every call it relays spends the store's shared Creem budget, so it
+checks four distributed limits through the Vercel Firewall (`@vercel/firewall`) before it calls Creem. Their counters
+live at Vercel's edge, shared by every function instance. Create each one under Project → Firewall → Configure → New
+Rule: condition **@vercel/firewall** equals the id, then Rate Limit, fixed window, action **Deny**.
+
+| Rule id | Keyed on | Limit | Why |
+| --- | --- | --- | --- |
+| `license-ip` | the caller's IP (default) | 10 per 60 s | One person needs three calls at most. |
+| `license-key` | a hash of the license key (sent by the route) | 10 per hour | A leaked key can't be churned. |
+| `license-activate` | `all` (one global bucket) | 60 per 60 s | Activations' own budget: checks can't use it up. |
+| `license-check` | `all` (one global bucket) | 60 per 60 s | Checks and deactivations, together. |
+
+Keep both global limits together under Creem's own rate limit for the store, so ours is reached first. A limited
+call gets `429` with `Retry-After`, and the app changes nothing. In production a rule that isn't there yet answers
+`503 not_configured` (the route never runs without its budget); previews carry on without it. If the check itself
+fails, the call is refused (`502`), never sent to Creem unchecked.
+
+When Creem throttles us anyway, the route stops calling it for Creem's `Retry-After` (or a wait that doubles from 5 s),
+bounded to 1 s–5 min, and answers `429` meanwhile. An in-memory floor (the same per-IP and per-key limits) also sits
+in front of the edge checks, at no cost.
+
+Also add a plain path rule as the outer wall: if Request Path **starts with** `/api/license` (so `/api/license/` is
+caught too), Rate Limit, fixed window, 60 seconds, 10 requests, keyed on IP, action **Deny**.
+
+Never put a **Challenge** action, or Attack Challenge Mode, on this path: the Mac app can't solve a browser challenge,
+so every copy of the direct build would stop getting answers. If Attack Challenge Mode has to go on, exclude
+`/api/license` from it.
+
+**It has to survive the WordPress cutover.** The site moves to WordPress on WP Engine the week of Jan 4, 2027 (ADR 0016
+in the app repo). Shipped apps have `https://netrelish.com/api/license` built in. Before the DNS switch, this
+relay must answer at that same URL, with the same contract, from wherever the site lives. If it doesn't, every copy of
+the direct build in the field loses activation.
+
+**Check it.** A made-up key should come back `404` or `409`. A `502` or `503` means the relay itself isn't set up right.
+
+```
+curl -i -X POST -H 'content-type: application/json' \
+  -d '{"action":"validate","key":"NOTAREALKEY1","instance_id":"none"}' https://netrelish.com/api/license
+```
 
 ## Verifying a deploy
 
