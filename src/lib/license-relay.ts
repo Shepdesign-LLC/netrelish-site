@@ -125,7 +125,8 @@ function summarize(raw: unknown): { status: string; instance_id: string | null; 
     typeof inst === 'object' && inst !== null && !Array.isArray(inst) ? (inst as Record<string, unknown>).id : undefined;
   return {
     status,
-    instance_id: typeof id === 'string' ? id : null,
+    // Only an id the app could send back. Anything else is dropped, and the app treats no id as no activation.
+    instance_id: typeof id === 'string' && INSTANCE_ID.test(id) ? id : null,
     expires_at: typeof o.expires_at === 'string' ? o.expires_at : null,
   };
 }
@@ -190,10 +191,22 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
   }
 
   await res.body?.cancel().catch(() => {});
-  if (res.status === 404) return reply({ status: 'invalid' }, 404);
-  // 401/403 are our secret key, 429 is our rate limit: neither says anything about the buyer's license, so the app
-  // must not hear "rejected" and drop Pro. They go out as upstream failures, which the app retries later.
-  if (res.status === 401 || res.status === 403 || res.status === 429) return upstream();
-  if (res.status >= 400 && res.status < 500) return reply({ status: 'rejected' }, 409);
-  return upstream();
+  return verdict(action, res.status);
+}
+
+/**
+ * What a non-2xx from Creem means for the app. Only a clear verdict on the buyer's license becomes one: anything
+ * else is an upstream failure, which changes nothing on the Mac.
+ *
+ * 401/403 are our secret key and 429 our rate limit, so they never say anything about the license. Past that, an
+ * activation refused with a 4xx is a refusal (too many Macs, say). A check or a deactivation is stricter, since a
+ * wrong "rejected" there locks a paying Mac or makes it forget an activation the store still counts: only 404
+ * (unknown key or instance) and 409/410 (gone) are verdicts.
+ */
+export function verdict(action: Action, status: number): Response {
+  if (status === 404) return reply({ status: 'invalid' }, 404);
+  if (status === 401 || status === 403 || status === 429) return upstream();
+  if (status < 400 || status >= 500) return upstream();
+  if (action === 'activate') return reply({ status: 'rejected' }, 409);
+  return status === 409 || status === 410 ? reply({ status: 'rejected' }, 409) : upstream();
 }

@@ -61,14 +61,19 @@ Redeploy after changing either one.
 
 | Reply | Means |
 | --- | --- |
-| `200 {"status", "instance_id", "expires_at"}` | Creem answered. `status` is `active`, `inactive`, `expired`, `disabled` or `unknown`. The other two are strings or `null`. |
+| `200 {"status", "instance_id", "expires_at"}` | Creem answered. `status` is `active`, `inactive`, `expired`, `disabled` or `unknown`. The other two are strings or `null`; an `instance_id` outside the pattern above comes back `null`. |
 | `404 {"status":"invalid"}` | Creem doesn't know that key or instance. |
-| `409 {"status":"rejected"}` | Creem refused, for example at the activation limit or on an instance already deactivated. |
-| `502 {"error":"upstream"}` | Creem failed, timed out after 10 s, or sent something we can't read. Also Creem `401`, `403` and `429`: those are about our key or our rate, not the buyer's license. The app should keep its last answer and try again later. |
+| `409 {"status":"rejected"}` | On `activate`, any other Creem `4xx`: a refusal, such as the activation limit. On `validate` and `deactivate`, only Creem `409` or `410`. |
+| `502 {"error":"upstream"}` | Creem failed, timed out after 10 s, or sent something we can't read. Also Creem `401`, `403` and `429`, which are about our key or our rate, and any other `4xx` on `validate` or `deactivate`. None of these is a verdict on the buyer's license, so the app changes nothing and the person tries again. |
 | `503 {"error":"not_configured"}` | `CREEM_API_KEY` is unset or `CREEM_API_BASE` is not a Creem host. |
 | `400`, `405`, `413`, `415` | Bad body, wrong method, body over 2 KB, wrong content type. |
 
 Every reply is JSON with `cache-control: no-store`. There are no CORS headers: the caller is the app, not a browser.
+
+**Rate-limit it.** The route is public, and every call it relays spends Creem's rate limit for the whole store. Add a
+Vercel Firewall rule (Project → Firewall → Configure → New Rule): if Request Path equals `/api/license`, Rate Limit,
+fixed window, 60 seconds, 10 requests, keyed on IP, action Deny. A person activating, checking and deactivating uses
+three calls at most. Firewall rules are on every Vercel plan.
 
 **It has to survive the WordPress cutover.** The site moves to WordPress on WP Engine the week of Jan 4, 2027 (ADR 0016
 in the app repo). Shipped apps have `https://netrelish.com/api/license` built in. Before the DNS switch, this

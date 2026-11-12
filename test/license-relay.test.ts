@@ -138,6 +138,14 @@ describe('/api/license — happy paths', () => {
     expect(await (await call(post(validate))).json()).toMatchObject({ instance_id: null });
   });
 
+  it.each([['with a space', 'ins 1'], ['with a slash', '../admin'], ['empty', ''], ['too long', 'a'.repeat(129)]])(
+    'drops an instance id the app could never send back (%s)',
+    async (_label, id) => {
+      fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id } })));
+      expect(await (await call(post(activate))).json()).toMatchObject({ instance_id: null });
+    },
+  );
+
   it('uses test mode when CREEM_API_BASE is the Creem test host', async () => {
     vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
     expect((await call(post(validate))).status).toBe(200);
@@ -332,7 +340,7 @@ describe('/api/license — Creem failures', () => {
     expect(await res.json()).toEqual({ status: 'invalid' });
   });
 
-  it.each([400, 409, 410, 422])('%i from Creem → 409 rejected, body not passed on', async (status) => {
+  it.each([400, 409, 410, 422])('%i from Creem on activate → 409 rejected, body not passed on', async (status) => {
     fetchMock.mockResolvedValueOnce(creemReply({ message: 'Activation limit reached', customer_email: EMAIL, key: KEY }, status));
     const res = await call(post(activate));
     expect(res.status).toBe(409);
@@ -340,6 +348,27 @@ describe('/api/license — Creem failures', () => {
     expect(JSON.parse(text)).toEqual({ status: 'rejected' });
     expect(text).not.toContain(EMAIL);
   });
+
+  it.each([409, 410])('%i from Creem on a check or deactivation → 409 rejected', async (status) => {
+    for (const body of [validate, deactivate]) {
+      fetchMock.mockResolvedValueOnce(creemReply({ message: 'gone' }, status));
+      const res = await call(post(body));
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ status: 'rejected' });
+    }
+  });
+
+  it.each([400, 405, 413, 422])(
+    '%i from Creem on a check or deactivation is no verdict → 502, so a paying Mac keeps Pro',
+    async (status) => {
+      for (const body of [validate, deactivate]) {
+        fetchMock.mockResolvedValueOnce(creemReply({ message: 'bad request' }, status));
+        const res = await call(post(body));
+        expect(res.status).toBe(502);
+        expect(await res.json()).toEqual({ error: 'upstream' });
+      }
+    },
+  );
 
   it.each([401, 403, 429])('%i from Creem (our key or our rate, not the buyer’s license) → 502', async (status) => {
     fetchMock.mockResolvedValueOnce(creemReply({ message: 'nope' }, status));
