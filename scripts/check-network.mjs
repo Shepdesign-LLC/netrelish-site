@@ -2,7 +2,11 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const ALLOWED = new Set(['netrelish.com', 'www.netrelish.com', 'github.com', 'apps.apple.com', 'www.w3.org', 'c2pa.org']);
+const ALLOWED = new Set([
+  'netrelish.com', 'www.netrelish.com', 'github.com', 'apps.apple.com', 'www.w3.org', 'c2pa.org',
+  // Creem's license API. Only the /api/license relay (a server function) calls these; no page may.
+  'api.creem.io', 'test-api.creem.io',
+]);
 const root = 'dist/client'; // the Vercel adapter puts the static site here
 const hits = [];
 
