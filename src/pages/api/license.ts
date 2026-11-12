@@ -10,6 +10,8 @@ export const POST: APIRoute = ({ request }) =>
     fetch,
     apiKey: readEnv('CREEM_API_KEY'),
     apiBase: readEnv('CREEM_API_BASE'),
+    environment: readEnv('VERCEL_ENV'),
+    productId: readEnv('CREEM_PRODUCT_ID'),
   });
 
 export const ALL: APIRoute = () => methodNotAllowed();

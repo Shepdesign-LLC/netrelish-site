@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { APIContext } from 'astro';
 import { ALL, POST } from '../src/pages/api/license';
-import { handleLicenseRelay, MAX_BODY_BYTES } from '../src/lib/license-relay';
+import { defaultLimiter, handleLicenseRelay, LIMITS, MAX_BODY_BYTES, RateLimiter } from '../src/lib/license-relay';
 
 const URL_ = 'https://netrelish.com/api/license';
 const KEY = 'NRKEY_abcd-1234-EFGH';
-const NAME = "Ryan's MacBook Pro"; // printable ASCII only
+const NAME = 'NetRelish-0a1b2c3d'; // what the app sends
 const INSTANCE = 'ins_7Xk2pQ';
 const EMAIL = 'buyer@example.com';
 
@@ -51,6 +51,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let logs: string[];
 
 beforeEach(() => {
+  defaultLimiter.reset();
   fetchMock = vi.fn(async () => creemReply(creemLicense()));
   vi.stubGlobal('fetch', fetchMock);
   vi.stubEnv('CREEM_API_KEY', 'creem_secret_test');
@@ -130,7 +131,7 @@ describe('/api/license — happy paths', () => {
   });
 
   it('maps an unknown status to "unknown" and a missing or odd instance to null', async () => {
-    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: 'paused', instance: undefined, expires_at: 12345 })));
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: 'paused', instance: undefined, expires_at: null })));
     expect(await (await call(post(validate))).json()).toEqual({ status: 'unknown', instance_id: null, expires_at: null });
     fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: undefined, instance: [{ id: INSTANCE }] })));
     expect(await (await call(post(validate))).json()).toMatchObject({ status: 'unknown', instance_id: null });
@@ -142,12 +143,13 @@ describe('/api/license — happy paths', () => {
     'drops an instance id the app could never send back (%s)',
     async (_label, id) => {
       fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id } })));
-      expect(await (await call(post(activate))).json()).toMatchObject({ instance_id: null });
+      expect(await (await call(post(validate))).json()).toMatchObject({ instance_id: null });
     },
   );
 
   it('uses test mode when CREEM_API_BASE is the Creem test host', async () => {
     vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode: 'test', instance: { id: INSTANCE, mode: 'test', status: 'active' } })));
     expect((await call(post(validate))).status).toBe(200);
     expect(forwarded().url).toBe('https://test-api.creem.io/v1/licenses/validate');
   });
@@ -158,8 +160,8 @@ describe('/api/license — happy paths', () => {
 
   it('accepts the edges of every range', async () => {
     const edges = [
-      { action: 'activate', key: 'a'.repeat(8), instance_name: ' ' },
-      { action: 'activate', key: 'A_-9'.repeat(32), instance_name: ' !"#$%&\'()*+,-./09:;<=>?@AZ[\\]^_`az{|}~'.padEnd(64, 'x') },
+      { action: 'activate', key: 'a'.repeat(8), instance_name: 'a' },
+      { action: 'activate', key: 'A_-9'.repeat(32), instance_name: 'AZaz09._-'.padEnd(64, 'x') },
       { action: 'validate', key: KEY, instance_id: 'x' },
       { action: 'deactivate', key: KEY, instance_id: 'a-_Z'.repeat(32) },
     ];
@@ -431,5 +433,125 @@ describe('/api/license — Creem failures', () => {
   it.each([['an array', '[]'], ['null', 'null'], ['a string', '"active"'], ['empty', '']])('a 200 whose body is %s → 502', async (_l, body) => {
     fetchMock.mockResolvedValueOnce(new Response(body, { status: 200 }));
     expect((await call(post(validate))).status).toBe(502);
+  });
+});
+
+describe('/api/license — what reaches the app', () => {
+  it('a 2xx activation with no usable instance id is no answer, so no slot sits unreachable', async () => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id: 'ins 1' } })));
+    const res = await call(post(activate));
+    expect(res.status).toBe(502);
+    expect(logs).toContain('license: activate creem 2xx without a usable instance');
+  });
+
+  it.each([['a number', 12345], ['not a date', 'next year'], ['an impossible date', '2027-13-45T00:00:00Z'], ['too long', `2027-11-12T00:00:00.${'0'.repeat(40)}Z`]])(
+    'an end date that is %s is no answer, never "doesn\'t run out"',
+    async (_label, expires_at) => {
+      fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ expires_at })));
+      expect((await call(post(validate))).status).toBe(502);
+    },
+  );
+
+  it('an end date is passed on in one ISO form', async () => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ expires_at: '2027-11-12T08:30:00+02:00' })));
+    expect(await (await call(post(validate))).json()).toMatchObject({ expires_at: '2027-11-12T06:30:00.000Z' });
+  });
+
+  it('a license active while this Mac\'s own activation was given back reads as inactive', async () => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id: INSTANCE, mode: 'live', status: 'deactivated' } })));
+    expect(await (await call(post(validate))).json()).toMatchObject({ status: 'inactive', instance_id: INSTANCE });
+  });
+
+  it('a reply in the wrong mode for the host is no answer', async () => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode: 'test' })));
+    expect((await call(post(validate))).status).toBe(502);
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id: INSTANCE, mode: 'test', status: 'active' } })));
+    expect((await call(post(validate))).status).toBe(502);
+  });
+
+  it('a reply larger than any license object is no answer', async () => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ padding: 'x'.repeat(20_000) })));
+    expect((await call(post(validate))).status).toBe(502);
+  });
+
+  it('with CREEM_PRODUCT_ID set, only that product\'s keys are known', async () => {
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_1');
+    expect((await call(post(validate))).status).toBe(200);
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_netrelish');
+    const res = await call(post(validate));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ status: 'invalid' });
+  });
+
+  it.each([['markup', '<img src=x onerror=alert(1)>'], ['quotes', 'a"b'], ['a space', 'Ryan MacBook'], ['an ampersand', 'a&b']])(
+    '400s on an instance name with %s, before Creem stores it',
+    async (_label, instance_name) => {
+      expect((await call(post({ ...activate, instance_name }))).status).toBe(400);
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('asks Creem at a fixed path, whatever the action', async () => {
+    for (const [body, path] of [[activate, 'activate'], [validate, 'validate'], [deactivate, 'deactivate']] as const) {
+      fetchMock.mockClear();
+      await call(post(body));
+      expect(forwarded().url).toBe(`https://api.creem.io/v1/licenses/${path}`);
+    }
+  });
+});
+
+describe('/api/license — where the live key answers', () => {
+  it('production answers only through the live host', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    expect((await call(post(validate))).status).toBe(200);
+    vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
+    fetchMock.mockClear();
+    expect((await call(post(validate))).status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['preview', 'development'])('%s answers only through the test host, so it never spends the live key', async (env) => {
+    vi.stubEnv('VERCEL_ENV', env);
+    expect((await call(post(validate))).status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode: 'test', instance: { id: INSTANCE, mode: 'test', status: 'active' } })));
+    expect((await call(post(validate))).status).toBe(200);
+  });
+});
+
+describe('/api/license — rate limits', () => {
+  const from = (ip: string, body: unknown = validate) => post(body, { 'x-vercel-forwarded-for': ip });
+
+  it(`answers ${LIMITS.ip.max} calls a minute from one IP, then 429s without calling Creem`, async () => {
+    for (let i = 0; i < LIMITS.ip.max; i++) expect((await call(from('203.0.113.7', { ...validate, key: `KEY_${i}_abcdefgh` }))).status).toBe(200);
+    fetchMock.mockClear();
+    const res = await call(from('203.0.113.7', { ...validate, key: 'KEY_last_abcdefgh' }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('60');
+    expect(await res.json()).toEqual({ error: 'rate_limited' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await call(from('198.51.100.2'))).status).toBe(200);
+  });
+
+  it(`answers ${LIMITS.key.max} calls an hour for one key, from anywhere`, async () => {
+    for (let i = 0; i < LIMITS.key.max; i++) expect((await call(from(`192.0.2.${i}`))).status).toBe(200);
+    expect((await call(from('192.0.2.200'))).status).toBe(429);
+    expectNoSecretsLogged();
+  });
+
+  it('the window passes, and the limit lifts', () => {
+    let t = 0;
+    const limiter = new RateLimiter(() => t);
+    expect(limiter.take('b', 1, 1000)).toBe(true);
+    expect(limiter.take('b', 1, 1000)).toBe(false);
+    t = 1000;
+    expect(limiter.take('b', 1, 1000)).toBe(true);
+  });
+
+  it('a flood of distinct callers never grows the limiter past its cap', () => {
+    const limiter = new RateLimiter(() => 0, 100);
+    for (let i = 0; i < 1000; i++) limiter.take(`ip:${i}`, 10, 60_000);
+    expect((limiter as unknown as { hits: Map<string, unknown> }).hits.size).toBeLessThanOrEqual(100);
   });
 });

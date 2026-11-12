@@ -7,16 +7,42 @@
  *
  * It never logs the key, the instance, or Creem's body. At most: the action and the status Creem returned.
  * No CORS headers: the caller is the Mac app, not a page in a browser.
+ *
+ * The route is public by necessity (a native app has no session to prove), so it guards itself:
+ *  - a rate limit per IP and per license key (a hash of it), here in code as well as at Vercel's edge (DEPLOY.md);
+ *  - the live Creem key only answers in production, and only the test host answers anywhere else;
+ *  - Creem's reply is read capped, and only well-formed fields reach the app: a status from a fixed set, an id in
+ *    the app's own pattern, an ISO date, and, when CREEM_PRODUCT_ID is set, only NetRelish Pro's own keys.
+ *
+ * Firewall challenges (Attack Challenge Mode, a Challenge action) can't be solved by URLSession: any edge rule on
+ * this path must Deny, never Challenge, or every Mac stops getting answers.
  */
 
 export const CREEM_BASES = ['https://api.creem.io', 'https://test-api.creem.io'] as const;
 export const DEFAULT_CREEM_BASE = CREEM_BASES[0];
+export const TEST_CREEM_BASE = CREEM_BASES[1];
 export const MAX_BODY_BYTES = 2048;
+export const MAX_UPSTREAM_BYTES = 16 * 1024;
 export const UPSTREAM_TIMEOUT_MS = 10_000;
 
 export const LICENSE_KEY = /^[A-Za-z0-9_-]{8,128}$/;
-export const INSTANCE_NAME = /^[\x20-\x7E]{1,64}$/;
+/** The app sends `NetRelish-` and eight hex digits. Plain characters only: no markup ever reaches Creem's records. */
+export const INSTANCE_NAME = /^[A-Za-z0-9._-]{1,64}$/;
 export const INSTANCE_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/** Creem's three license endpoints. A fixed table: nothing from the request is ever part of the URL. */
+const PATHS = {
+  activate: '/v1/licenses/activate',
+  validate: '/v1/licenses/validate',
+  deactivate: '/v1/licenses/deactivate',
+} as const;
+
+/** Per IP: a person activating, checking and deactivating uses three calls. Per key: a leaked key can't be churned. */
+export const LIMITS = {
+  ip: { max: 10, windowMs: 60_000 },
+  key: { max: 10, windowMs: 60 * 60_000 },
+} as const;
 
 const STATUSES = new Set(['active', 'inactive', 'expired', 'disabled']);
 
@@ -38,9 +64,60 @@ export interface LicenseRelayDeps {
   apiKey: string;
   /** CREEM_API_BASE as set. Empty means production; anything off the allowlist means not configured. */
   apiBase: string;
+  /**
+   * VERCEL_ENV. 'production' answers only through Creem's live host; any other set value only through its test host,
+   * so a preview deployment can never spend the live key. Unset (local runs, tests) checks neither.
+   */
+  environment?: string;
+  /** CREEM_PRODUCT_ID. When set, a license for any other product in the store is a key we don't know. */
+  productId?: string;
+  /** The per-instance limiter. Defaults to the module's own; tests pass a fresh one. */
+  limiter?: RateLimiter;
   /** Tests shorten this; production uses UPSTREAM_TIMEOUT_MS. */
   timeoutMs?: number;
   log?: (line: string) => void;
+}
+
+/**
+ * A fixed-window counter in this function instance's memory. Instances come and go and don't share it, so it's a
+ * floor, not a guarantee: Vercel's Firewall rule (DEPLOY.md) is the limit every request meets at the edge.
+ */
+export class RateLimiter {
+  private hits = new Map<string, { count: number; until: number }>();
+  constructor(private readonly now: () => number = () => Date.now(), private readonly maxEntries = 10_000) {}
+
+  /** Counts one hit on `bucket`. False once it's past `max` in the window. */
+  take(bucket: string, max: number, windowMs: number): boolean {
+    const t = this.now();
+    if (this.hits.size >= this.maxEntries) {
+      for (const [k, v] of this.hits) if (v.until <= t) this.hits.delete(k);
+      if (this.hits.size >= this.maxEntries) this.hits.clear(); // a flood of distinct buckets: start over
+    }
+    const hit = this.hits.get(bucket);
+    if (!hit || hit.until <= t) {
+      this.hits.set(bucket, { count: 1, until: t + windowMs });
+      return true;
+    }
+    hit.count += 1;
+    return hit.count <= max;
+  }
+
+  reset(): void { this.hits.clear(); }
+}
+
+export const defaultLimiter = new RateLimiter();
+
+/** The caller's IP as Vercel's edge reports it. Vercel sets these itself; a caller can't add its own. */
+function clientIp(req: Request): string {
+  const first = (h: string | null) => h?.split(',')[0]?.trim() || null;
+  return first(req.headers.get('x-vercel-forwarded-for')) ?? first(req.headers.get('x-real-ip'))
+    ?? first(req.headers.get('x-forwarded-for')) ?? 'unknown';
+}
+
+/** A short, one-way name for a license key, so the limiter never holds the key itself. */
+async function keyBucket(key: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  return Array.from(new Uint8Array(digest).slice(0, 12), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 function reply(body: unknown, status: number, extra: Record<string, string> = {}): Response {
@@ -53,6 +130,7 @@ function reply(body: unknown, status: number, extra: Record<string, string> = {}
 const badRequest = () => reply({ error: 'bad_request' }, 400);
 const tooLarge = () => reply({ error: 'too_large' }, 413);
 const upstream = () => reply({ error: 'upstream' }, 502);
+const rateLimited = () => reply({ error: 'rate_limited' }, 429, { 'retry-after': '60' });
 const notConfigured = () => reply({ error: 'not_configured' }, 503);
 export const methodNotAllowed = () => reply({ error: 'method_not_allowed' }, 405, { allow: 'POST' });
 
@@ -68,11 +146,16 @@ function isJsonContentType(req: Request): boolean {
 }
 
 /** The body, or 'too_large' past `max` bytes, or 'bad' when the stream breaks. Never reads more than max + one chunk. */
-async function readCapped(req: Request, max: number): Promise<Uint8Array | 'too_large' | 'bad'> {
-  if (!req.body) return new Uint8Array(0);
-  const reader = req.body.getReader();
+async function readCapped(from: { body: ReadableStream<Uint8Array> | null }, max: number): Promise<Uint8Array | 'too_large' | 'bad'> {
+  if (!from.body) return new Uint8Array(0);
   const chunks: Uint8Array[] = [];
   let size = 0;
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = from.body.getReader();
+  } catch {
+    return 'bad';
+  }
   try {
     for (;;) {
       const { done, value } = await reader.read();
@@ -115,19 +198,35 @@ export function parseLicenseRequest(raw: unknown): Forward | null {
   return INSTANCE_ID.test(instance_id) ? { action, body: { key, instance_id } } : null;
 }
 
-/** Creem's license object, cut down to the three fields the app reads. Null when it isn't an object. */
-function summarize(raw: unknown): { status: string; instance_id: string | null; expires_at: string | null } | null {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  const status = typeof o.status === 'string' && STATUSES.has(o.status) ? o.status : 'unknown';
-  const inst = o.instance;
-  const id =
-    typeof inst === 'object' && inst !== null && !Array.isArray(inst) ? (inst as Record<string, unknown>).id : undefined;
+type Summary = { status: string; instance_id: string | null; expires_at: string | null };
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/**
+ * Creem's license object, cut down to the three fields the app reads. Null when it isn't one we can stand behind:
+ * not an object, the wrong mode for the host asked, or an end date that can't be read (null there means "never").
+ * 'foreign' when it's a license for another product in the store.
+ */
+function summarize(raw: unknown, mode: 'live' | 'test', productId: string): Summary | 'foreign' | null {
+  if (!isObject(raw)) return null;
+  if (raw.mode !== undefined && raw.mode !== mode) return null;
+  if (productId && raw.product_id !== productId && !(isObject(raw.product) && raw.product.id === productId)) return 'foreign';
+  let status = typeof raw.status === 'string' && STATUSES.has(raw.status) ? raw.status : 'unknown';
+  const inst = isObject(raw.instance) ? raw.instance : undefined;
+  if (inst?.mode !== undefined && inst.mode !== mode) return null;
+  // The license can be active while this Mac's own activation was given back: that Mac's answer is inactive.
+  if (inst?.status === 'deactivated' && status === 'active') status = 'inactive';
+  let expires_at: string | null = null;
+  if (raw.expires_at !== undefined && raw.expires_at !== null) {
+    if (typeof raw.expires_at !== 'string' || raw.expires_at.length > 40 || !ISO_DATE.test(raw.expires_at)) return null;
+    const t = Date.parse(raw.expires_at);
+    if (Number.isNaN(t)) return null;
+    expires_at = new Date(t).toISOString();
+  }
   return {
     status,
     // Only an id the app could send back. Anything else is dropped, and the app treats no id as no activation.
-    instance_id: typeof id === 'string' && INSTANCE_ID.test(id) ? id : null,
-    expires_at: typeof o.expires_at === 'string' ? o.expires_at : null,
+    instance_id: typeof inst?.id === 'string' && INSTANCE_ID.test(inst.id) ? inst.id : null,
+    expires_at,
   };
 }
 
@@ -160,11 +259,23 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
     log('license: not configured (CREEM_API_KEY unset or CREEM_API_BASE not a Creem host)');
     return notConfigured();
   }
+  // Live sales answer only in production; every other deployment answers only through Creem's test host.
+  if (deps.environment && (deps.environment === 'production') !== (base === DEFAULT_CREEM_BASE)) {
+    log(`license: not configured (${deps.environment} must use Creem's ${deps.environment === 'production' ? 'live' : 'test'} host)`);
+    return notConfigured();
+  }
 
   const { action } = forward;
+  const limiter = deps.limiter ?? defaultLimiter;
+  if (!limiter.take(`ip:${clientIp(req)}`, LIMITS.ip.max, LIMITS.ip.windowMs)
+    || !limiter.take(`key:${await keyBucket(forward.body.key)}`, LIMITS.key.max, LIMITS.key.windowMs)) {
+    log(`license: ${action} rate limited`);
+    return rateLimited();
+  }
+
   let res: Response;
   try {
-    res = await deps.fetch(`${base}/v1/licenses/${action}`, {
+    res = await deps.fetch(new URL(PATHS[action], base).toString(), {
       method: 'POST',
       headers: { 'x-api-key': deps.apiKey, 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify(forward.body),
@@ -180,14 +291,23 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
   log(`license: ${action} creem ${res.status}`);
 
   if (res.status >= 200 && res.status < 300) {
+    const bytes = await readCapped(res, MAX_UPSTREAM_BYTES);
+    if (bytes === 'too_large' || bytes === 'bad') return upstream();
     let body: unknown;
     try {
-      body = JSON.parse(await res.text());
+      body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch {
       return upstream();
     }
-    const out = summarize(body);
-    return out ? reply(out, 200) : upstream();
+    const out = summarize(body, base === DEFAULT_CREEM_BASE ? 'live' : 'test', deps.productId ?? '');
+    if (out === 'foreign') return reply({ status: 'invalid' }, 404);
+    if (!out) return upstream();
+    // An activation the app gets no usable id for would sit in the store, counted and unreachable.
+    if (action === 'activate' && (out.status === 'active' || out.status === 'expired') && !out.instance_id) {
+      log('license: activate creem 2xx without a usable instance');
+      return upstream();
+    }
+    return reply(out, 200);
   }
 
   await res.body?.cancel().catch(() => {});

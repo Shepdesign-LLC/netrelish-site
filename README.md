@@ -6,6 +6,6 @@ The site for NetRelish, a Mac browser with a pantry. One page, Astro, plain CSS 
 - `npm run ci` is what CI runs: design drift, type check, tests, build, network rule, relish audit.
 - `/api/join` forwards a beta signup to Bento. It needs `BENTO_PUBLISHABLE_KEY`, `BENTO_SECRET_KEY`, `BENTO_SITE_UUID` in the environment.
 - `/api/checkout`, `/api/portal` and `/api/stripe/webhook` are the store: Stripe-hosted Checkout and Portal, license keys on payment. They need `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PORTAL_CONFIG`, `LICENSE_SECRET`; `PUBLIC_STORE_OPEN=true` at build time shows the buy buttons. See `docs/STRIPE.md`.
-- `/api/license` relays license activation for the app's direct build to Creem, so the app never holds Creem's secret key. It takes a license key and an instance name or id, nothing else. It needs `CREEM_API_KEY`; `CREEM_API_BASE=https://test-api.creem.io` for test mode. See `docs/DEPLOY.md`.
+- `/api/license` relays license activation for the app's direct build to Creem, so the app never holds Creem's secret key. It takes a license key and an instance name or id, nothing else. It needs `CREEM_API_KEY` (live key on Production only; previews use a test-mode key with `CREEM_API_BASE=https://test-api.creem.io`), and `CREEM_PRODUCT_ID` once known. See `docs/DEPLOY.md`.
 
 Code is MIT. The NetRelish name, `logo.svg`, and `logo-cog.svg` are all rights reserved and excluded from the license.
