@@ -137,7 +137,7 @@ describe('/api/license — happy paths', () => {
   it('maps an unknown status to "unknown" and a missing or odd instance to null', async () => {
     fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: 'paused', instance: undefined, expires_at: null })));
     expect(await (await call(post(validate))).json()).toEqual({ status: 'unknown', instance_id: null, expires_at: null });
-    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: undefined, instance: [{ id: INSTANCE }] })));
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ status: undefined, instance: [{ id: 'ins_someone_else' }] })));
     expect(await (await call(post(validate))).json()).toMatchObject({ status: 'unknown', instance_id: null });
     fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id: 42 } })));
     expect(await (await call(post(validate))).json()).toMatchObject({ instance_id: null });
@@ -648,5 +648,58 @@ describe('/api/license — the shared Creem budget', () => {
   it('the route only uses the Firewall check on Vercel', async () => {
     expect((await call(post(validate))).status).toBe(200); // no VERCEL_ENV: nothing to ask
     expect(logs.some((l) => l.includes('firewallHostForDevelopment'))).toBe(false);
+  });
+});
+
+describe('/api/license — Creem reply shapes', () => {
+  it.each(['live', 'prod', 'production', undefined])('the live host takes mode %s', async (mode) => {
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode, instance: { id: INSTANCE, mode, status: 'active' } })));
+    expect((await call(post(validate))).status).toBe(200);
+  });
+
+  it.each(['test', 'sandbox'])('the test host takes mode %s', async (mode) => {
+    vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode, instance: { id: INSTANCE, mode, status: 'active' } })));
+    expect((await call(post(validate))).status).toBe(200);
+  });
+
+  it.each(['live', 'prod'])('the test host refuses mode %s', async (mode) => {
+    vi.stubEnv('CREEM_API_BASE', 'https://test-api.creem.io');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ mode })));
+    expect((await call(post(validate))).status).toBe(502);
+  });
+
+  it('an instance list: a check reads its own instance, an activation the only one', async () => {
+    const list = [{ id: 'ins_other', status: 'active' }, { id: INSTANCE, status: 'deactivated' }];
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: list })));
+    expect(await (await call(post(validate))).json()).toMatchObject({ status: 'inactive', instance_id: INSTANCE });
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: [{ id: 'ins_new', status: 'active' }] })));
+    expect(await (await call(post(activate))).json()).toMatchObject({ status: 'active', instance_id: 'ins_new' });
+  });
+
+  it('with CREEM_PRODUCT_ID set, a reply that names no product goes through, and the log says so', async () => {
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_netrelish');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ product_id: undefined })));
+    expect((await call(post(validate))).status).toBe(200);
+    expect(logs).toContain('license: creem reply names no product');
+  });
+
+  it('CREEM_PRODUCT_ID takes a list: yearly and lifetime', async () => {
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_year, prod_1');
+    expect((await call(post(validate))).status).toBe(200);
+  });
+
+  it('another product\'s key: the activation Creem just counted is given back, then the key is unknown', async () => {
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_netrelish');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense()));
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ instance: { id: INSTANCE, status: 'deactivated' } })));
+    const res = await call(post(activate));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ status: 'invalid' });
+    const back = forwarded(1);
+    expect(back.url).toBe('https://api.creem.io/v1/licenses/deactivate');
+    expect(back.body).toEqual({ key: KEY, instance_id: INSTANCE });
+    expect(logs).toContain('license: gave back a foreign activation, creem 200');
+    expectNoSecretsLogged();
   });
 });

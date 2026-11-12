@@ -254,20 +254,55 @@ export function parseLicenseRequest(raw: unknown): Forward | null {
 }
 
 type Summary = { status: string; instance_id: string | null; expires_at: string | null };
+type Verdict = Summary | { foreign: true; instanceId: string | null } | null;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
- * Creem's license object, cut down to the three fields the app reads. Null when it isn't one we can stand behind:
- * not an object, the wrong mode for the host asked, or an end date that can't be read (null there means "never").
- * 'foreign' when it's a license for another product in the store.
+ * Modes that belong to the other host. Creem's docs name its modes more than one way (prod, live, test, sandbox), so
+ * only a mode that plainly belongs to the other side is refused; anything else is taken as the host's own.
  */
-function summarize(raw: unknown, mode: 'live' | 'test', productId: string): Summary | 'foreign' | null {
+const OTHER_SIDE: Record<'live' | 'test', ReadonlySet<string>> = {
+  live: new Set(['test', 'sandbox']),
+  test: new Set(['prod', 'production', 'live']),
+};
+
+/** This call's instance: Creem's `instance` as an object, or the matching (or only) one when it's a list. */
+function pickInstance(raw: unknown, wantedId: string | undefined): Record<string, unknown> | undefined {
+  if (isObject(raw)) return raw;
+  if (!Array.isArray(raw)) return undefined;
+  const objects = raw.filter(isObject);
+  if (wantedId !== undefined) return objects.find((i) => i.id === wantedId);
+  return objects.length === 1 ? objects[0] : undefined;
+}
+
+/** The license's product id, when Creem names one. */
+function productOf(raw: Record<string, unknown>): string | undefined {
+  if (typeof raw.product_id === 'string') return raw.product_id;
+  if (isObject(raw.product) && typeof raw.product.id === 'string') return raw.product.id;
+  if (typeof raw.product === 'string') return raw.product;
+  return undefined;
+}
+
+/**
+ * Creem's license object, cut down to the three fields the app reads. Null when it isn't one we can stand behind:
+ * not an object, a mode from the other host, or an end date that can't be read (null there means "never").
+ * Foreign when it names a product that isn't one of NetRelish Pro's.
+ */
+function summarize(raw: unknown, mode: 'live' | 'test', products: ReadonlySet<string>, wantedId: string | undefined,
+  log: (line: string) => void): Verdict {
   if (!isObject(raw)) return null;
-  if (raw.mode !== undefined && raw.mode !== mode) return null;
-  if (productId && raw.product_id !== productId && !(isObject(raw.product) && raw.product.id === productId)) return 'foreign';
+  if (typeof raw.mode === 'string' && OTHER_SIDE[mode].has(raw.mode)) return null;
+  const inst = pickInstance(raw.instance, wantedId);
+  if (typeof inst?.mode === 'string' && OTHER_SIDE[mode].has(inst.mode)) return null;
+  const instanceId = typeof inst?.id === 'string' && INSTANCE_ID.test(inst.id) ? inst.id : null;
+  if (products.size > 0) {
+    const product = productOf(raw);
+    // Only a product that's named and isn't ours is foreign. Unnamed, the reply goes through: refusing it would lock
+    // out every buyer if Creem's license object simply doesn't carry the field.
+    if (product === undefined) log('license: creem reply names no product');
+    else if (!products.has(product)) return { foreign: true, instanceId };
+  }
   let status = typeof raw.status === 'string' && STATUSES.has(raw.status) ? raw.status : 'unknown';
-  const inst = isObject(raw.instance) ? raw.instance : undefined;
-  if (inst?.mode !== undefined && inst.mode !== mode) return null;
   // The license can be active while this Mac's own activation was given back: that Mac's answer is inactive.
   if (inst?.status === 'deactivated' && status === 'active') status = 'inactive';
   let expires_at: string | null = null;
@@ -280,7 +315,7 @@ function summarize(raw: unknown, mode: 'live' | 'test', productId: string): Summ
   return {
     status,
     // Only an id the app could send back. Anything else is dropped, and the app treats no id as no activation.
-    instance_id: typeof inst?.id === 'string' && INSTANCE_ID.test(inst.id) ? inst.id : null,
+    instance_id: instanceId,
     expires_at,
   };
 }
@@ -396,8 +431,16 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
     } catch {
       return upstream();
     }
-    const out = summarize(body, base === DEFAULT_CREEM_BASE ? 'live' : 'test', deps.productId ?? '');
-    if (out === 'foreign') return reply({ status: 'invalid' }, 404);
+    const products = new Set((deps.productId ?? '').split(',').map((p) => p.trim()).filter(Boolean));
+    const wantedId = forward.action === 'activate' ? undefined : forward.body.instance_id;
+    const out = summarize(body, base === DEFAULT_CREEM_BASE ? 'live' : 'test', products, wantedId, log);
+    if (out && 'foreign' in out) {
+      // Another product's key. Creem has already counted an activation for it: give that back before saying so.
+      if (action === 'activate' && out.instanceId) {
+        await giveBack(deps, base, forward.body.key, out.instanceId, log);
+      }
+      return reply({ status: 'invalid' }, 404);
+    }
     if (!out) return upstream();
     // An activation the app gets no usable id for would sit in the store, counted and unreachable.
     if (action === 'activate' && (out.status === 'active' || out.status === 'expired') && !out.instance_id) {
@@ -409,6 +452,23 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
 
   await res.body?.cancel().catch(() => {});
   return verdict(action, res.status);
+}
+
+/** Returns an activation Creem just made that the app will never hear about. Best effort: logged, never thrown. */
+async function giveBack(deps: LicenseRelayDeps, base: string, key: string, instanceId: string, log: (l: string) => void) {
+  try {
+    const res = await deps.fetch(new URL(PATHS.deactivate, base).toString(), {
+      method: 'POST',
+      headers: { 'x-api-key': deps.apiKey, 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ key, instance_id: instanceId }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(deps.timeoutMs ?? UPSTREAM_TIMEOUT_MS),
+    });
+    await res.body?.cancel().catch(() => {});
+    log(`license: gave back a foreign activation, creem ${res.status}`);
+  } catch {
+    log('license: could not give back a foreign activation');
+  }
 }
 
 /**
