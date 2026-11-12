@@ -254,7 +254,7 @@ export function parseLicenseRequest(raw: unknown): Forward | null {
 }
 
 type Summary = { status: string; instance_id: string | null; expires_at: string | null };
-type Verdict = Summary | { foreign: true; instanceId: string | null } | null;
+type Verdict = Summary | { foreign: true; instanceId: string | null } | { unverified: true; instanceId: string | null } | null;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
@@ -297,10 +297,13 @@ function summarize(raw: unknown, mode: 'live' | 'test', products: ReadonlySet<st
   const instanceId = typeof inst?.id === 'string' && INSTANCE_ID.test(inst.id) ? inst.id : null;
   if (products.size > 0) {
     const product = productOf(raw);
-    // Only a product that's named and isn't ours is foreign. Unnamed, the reply goes through: refusing it would lock
-    // out every buyer if Creem's license object simply doesn't carry the field.
-    if (product === undefined) log('license: creem reply names no product');
-    else if (!products.has(product)) return { foreign: true, instanceId };
+    // Fail closed: with CREEM_PRODUCT_ID set, only a license that names one of our products counts. One that names
+    // no product is no answer (and the log says so, so the variable can be unset if Creem never sends the field).
+    if (product === undefined) {
+      log('license: creem reply names no product');
+      return { unverified: true, instanceId };
+    }
+    if (!products.has(product)) return { foreign: true, instanceId };
   }
   let status = typeof raw.status === 'string' && STATUSES.has(raw.status) ? raw.status : 'unknown';
   // The license can be active while this Mac's own activation was given back: that Mac's answer is inactive.
@@ -440,6 +443,13 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
         await giveBack(deps, base, forward.body.key, out.instanceId, log);
       }
       return reply({ status: 'invalid' }, 404);
+    }
+    if (out && 'unverified' in out) {
+      // Not a verdict either way, but Creem has counted an activation the app will never hear about: give it back.
+      if (action === 'activate' && out.instanceId) {
+        await giveBack(deps, base, forward.body.key, out.instanceId, log);
+      }
+      return upstream();
     }
     if (!out) return upstream();
     // An activation the app gets no usable id for would sit in the store, counted and unreachable.

@@ -677,11 +677,20 @@ describe('/api/license — Creem reply shapes', () => {
     expect(await (await call(post(activate))).json()).toMatchObject({ status: 'active', instance_id: 'ins_new' });
   });
 
-  it('with CREEM_PRODUCT_ID set, a reply that names no product goes through, and the log says so', async () => {
+  it('with CREEM_PRODUCT_ID set, a reply that names no product is no answer (fail closed), and the log says so', async () => {
     vi.stubEnv('CREEM_PRODUCT_ID', 'prod_netrelish');
     fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ product_id: undefined })));
-    expect((await call(post(validate))).status).toBe(200);
+    expect((await call(post(validate))).status).toBe(502);
     expect(logs).toContain('license: creem reply names no product');
+  });
+
+  it('an activation that names no product is given back before answering no answer', async () => {
+    vi.stubEnv('CREEM_PRODUCT_ID', 'prod_netrelish');
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ product_id: undefined })));
+    fetchMock.mockResolvedValueOnce(creemReply(creemLicense({ product_id: undefined })));
+    expect((await call(post(activate))).status).toBe(502);
+    expect(forwarded(1).url).toBe('https://api.creem.io/v1/licenses/deactivate');
+    expect(forwarded(1).body).toEqual({ key: KEY, instance_id: INSTANCE });
   });
 
   it('CREEM_PRODUCT_ID takes a list: yearly and lifetime', async () => {

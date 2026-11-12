@@ -52,9 +52,10 @@ reaches it, and it logs only the action and the status Creem returned.
 - The route enforces the split itself, from `VERCEL_ENV`: production answers only through Creem's live host, and any
   other deployment only through the test host. So a preview build of any branch can never spend the live key. Any
   other `CREEM_API_BASE` value turns the route off (`503`), so a typo can't send keys to another host.
-- `CREEM_PRODUCT_ID`: when set, a license for any other product in the store is answered `404 invalid`, so a key
-  for something else Shepdesign sells never unlocks NetRelish Pro. Set it after one test-mode activation shows the
-  license's `product_id`; leave it unset until then.
+- `CREEM_PRODUCT_ID` (one id, or a comma-separated list for yearly and lifetime): when set, only a license naming one
+  of these products counts. Another product's key is answered `404 invalid`, and its activation is given back. A
+  reply naming no product at all is no answer (`502`), and the log says `license: creem reply names no product`. Set
+  it, then do one test-mode activation: if that line shows up, Creem's reply doesn't carry the field, so unset it.
 - Keep Vercel Deployment Protection on for previews.
 
 Redeploy after changing any of these.
