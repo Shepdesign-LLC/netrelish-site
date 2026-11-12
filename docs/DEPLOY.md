@@ -75,19 +75,36 @@ Redeploy after changing any of these.
 | `200 {"status", "instance_id", "expires_at"}` | Creem answered. `status` is `active`, `inactive`, `expired`, `disabled` or `unknown`. The other two are strings or `null`; an `instance_id` outside the pattern above comes back `null`. |
 | `404 {"status":"invalid"}` | Creem doesn't know that key or instance. |
 | `409 {"status":"rejected"}` | On `activate`, any other Creem `4xx`: a refusal, such as the activation limit. On `validate` and `deactivate`, only Creem `409` or `410`. |
-| `429 {"error":"rate_limited"}` | Over the relay's own limit: 10 calls a minute per IP, or 10 an hour per license key. No verdict; `retry-after: 60`. |
+| `429 {"error":"rate_limited"}` | Over a limit (per IP, per key, or a global budget), or Creem is throttling us. No verdict; `retry-after` says when to try. |
 | `502 {"error":"upstream"}` | Creem failed, timed out after 10 s, or sent something we can't read. Also Creem `401`, `403` and `429`, which are about our key or our rate, and any other `4xx` on `validate` or `deactivate`. None of these is a verdict on the buyer's license, so the app changes nothing and the person tries again. |
 | `503 {"error":"not_configured"}` | `CREEM_API_KEY` is unset or `CREEM_API_BASE` is not a Creem host. |
 | `400`, `405`, `413`, `415` | Bad body, wrong method, body over 2 KB, wrong content type. |
 
 Every reply is JSON with `cache-control: no-store`. There are no CORS headers: the caller is the app, not a browser.
 
-**Rate-limit it.** The route is public, and every call it relays spends Creem's rate limit for the whole store. The
-route limits itself in code (10 a minute per IP, 10 an hour per key), but that counter lives in one function
-instance's memory, so it's a floor. The edge rule is the real limit. Add a Vercel Firewall rule (Project → Firewall →
-Configure → New Rule): if Request Path **starts with** `/api/license` (so `/api/license/` is caught too), Rate Limit,
-fixed window, 60 seconds, 10 requests, keyed on IP, action **Deny**. A person activating, checking and deactivating uses
-three calls at most. Firewall rules are on every Vercel plan.
+**Rate-limit it.** The route is public, and every call it relays spends the store's shared Creem budget, so it
+checks four distributed limits through the Vercel Firewall (`@vercel/firewall`) before it calls Creem. Their counters
+live at Vercel's edge, shared by every function instance. Create each one under Project → Firewall → Configure → New
+Rule: condition **@vercel/firewall** equals the id, then Rate Limit, fixed window, action **Deny**.
+
+| Rule id | Keyed on | Limit | Why |
+| --- | --- | --- | --- |
+| `license-ip` | the caller's IP (default) | 10 per 60 s | One person needs three calls at most. |
+| `license-key` | a hash of the license key (sent by the route) | 10 per hour | A leaked key can't be churned. |
+| `license-activate` | `all` (one global bucket) | 60 per 60 s | Activations' own budget: checks can't use it up. |
+| `license-check` | `all` (one global bucket) | 60 per 60 s | Checks and deactivations, together. |
+
+Keep both global limits together under Creem's own rate limit for the store, so ours is reached first. A limited
+call gets `429` with `Retry-After`, and the app changes nothing. In production a rule that isn't there yet answers
+`503 not_configured` (the route never runs without its budget); previews carry on without it. If the check itself
+fails, the call is refused (`502`), never sent to Creem unchecked.
+
+When Creem throttles us anyway, the route stops calling it for Creem's `Retry-After` (or a wait that doubles from 5 s),
+bounded to 1 s–5 min, and answers `429` meanwhile. An in-memory floor (the same per-IP and per-key limits) also sits
+in front of the edge checks, at no cost.
+
+Also add a plain path rule as the outer wall: if Request Path **starts with** `/api/license` (so `/api/license/` is
+caught too), Rate Limit, fixed window, 60 seconds, 10 requests, keyed on IP, action **Deny**.
 
 Never put a **Challenge** action, or Attack Challenge Mode, on this path: the Mac app can't solve a browser challenge,
 so every copy of the direct build would stop getting answers. If Attack Challenge Mode has to go on, exclude

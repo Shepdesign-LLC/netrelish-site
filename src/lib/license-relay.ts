@@ -8,8 +8,11 @@
  * It never logs the key, the instance, or Creem's body. At most: the action and the status Creem returned.
  * No CORS headers: the caller is the Mac app, not a page in a browser.
  *
- * The route is public by necessity (a native app has no session to prove), so it guards itself:
- *  - a rate limit per IP and per license key (a hash of it), here in code as well as at Vercel's edge (DEPLOY.md);
+ * The route is public by necessity (a native app has no session to prove), so it guards the store's Creem budget:
+ *  - distributed limits through the Vercel Firewall (@vercel/firewall): per IP, per license key (a hash of it), and
+ *    a global budget per kind of call, so a flood of checks can't use up the room activations need (DEPLOY.md);
+ *  - an in-memory floor per function instance, in front of those;
+ *  - when Creem throttles us, a bounded backoff: no calls to Creem until its Retry-After (or a doubling wait) passes;
  *  - the live Creem key only answers in production, and only the test host answers anywhere else;
  *  - Creem's reply is read capped, and only well-formed fields reach the app: a status from a fixed set, an id in
  *    the app's own pattern, an ISO date, and, when CREEM_PRODUCT_ID is set, only NetRelish Pro's own keys.
@@ -44,6 +47,26 @@ export const LIMITS = {
   key: { max: 10, windowMs: 60 * 60_000 },
 } as const;
 
+/**
+ * The Vercel Firewall rate-limit rules this route checks, by id. Each must exist in the dashboard as a rule with the
+ * condition "@vercel/firewall" equals the id (DEPLOY.md lists the windows). Activations and checks have separate
+ * global budgets, so checks can never use up what activations need.
+ */
+export const FIREWALL_RULES = {
+  ip: 'license-ip',
+  key: 'license-key',
+  activate: 'license-activate',
+  check: 'license-check',
+} as const;
+
+/** How long to stop calling Creem after it throttles us: its Retry-After, or a doubling wait, within these bounds. */
+export const BACKOFF = { minMs: 1_000, firstMs: 5_000, maxMs: 300_000 } as const;
+
+export type CheckRateLimit = (
+  id: string,
+  options: { request: Request; rateLimitKey?: string; timeout?: number },
+) => Promise<{ rateLimited: boolean; error?: 'not-found' | 'blocked' }>;
+
 const STATUSES = new Set(['active', 'inactive', 'expired', 'disabled']);
 
 type Action = 'activate' | 'validate' | 'deactivate';
@@ -73,6 +96,10 @@ export interface LicenseRelayDeps {
   productId?: string;
   /** The per-instance limiter. Defaults to the module's own; tests pass a fresh one. */
   limiter?: RateLimiter;
+  /** The distributed check (@vercel/firewall's checkRateLimit). Given on Vercel; absent in local runs and tests. */
+  checkRateLimit?: CheckRateLimit;
+  /** Creem's throttling, remembered. Defaults to the module's own; tests pass a fresh one. */
+  backoff?: UpstreamBackoff;
   /** Tests shorten this; production uses UPSTREAM_TIMEOUT_MS. */
   timeoutMs?: number;
   log?: (line: string) => void;
@@ -107,6 +134,34 @@ export class RateLimiter {
 
 export const defaultLimiter = new RateLimiter();
 
+/** Remembers that Creem throttled us, and for how long not to ask it again. */
+export class UpstreamBackoff {
+  private until = 0;
+  private nextMs: number = BACKOFF.firstMs;
+  constructor(private readonly now: () => number = () => Date.now()) {}
+
+  /** Seconds left to wait, or 0 when Creem may be asked. */
+  remainingSeconds(): number {
+    return Math.max(0, Math.ceil((this.until - this.now()) / 1000));
+  }
+
+  /** Creem said 429. Wait its Retry-After if it gave one, else a wait that doubles each time; bounded either way. */
+  throttled(retryAfter: string | null): number {
+    const asked = retryAfter !== null && /^\d{1,6}$/.test(retryAfter.trim()) ? Number(retryAfter.trim()) * 1000 : null;
+    const wait = Math.min(BACKOFF.maxMs, Math.max(BACKOFF.minMs, asked ?? this.nextMs));
+    if (asked === null) this.nextMs = Math.min(BACKOFF.maxMs, this.nextMs * 2);
+    this.until = Math.max(this.until, this.now() + wait);
+    return this.remainingSeconds();
+  }
+
+  /** Creem answered without throttling: the doubling starts over. */
+  answered(): void { this.nextMs = BACKOFF.firstMs; }
+
+  reset(): void { this.until = 0; this.nextMs = BACKOFF.firstMs; }
+}
+
+export const defaultBackoff = new UpstreamBackoff();
+
 /** The caller's IP as Vercel's edge reports it. Vercel sets these itself; a caller can't add its own. */
 function clientIp(req: Request): string {
   const first = (h: string | null) => h?.split(',')[0]?.trim() || null;
@@ -130,7 +185,7 @@ function reply(body: unknown, status: number, extra: Record<string, string> = {}
 const badRequest = () => reply({ error: 'bad_request' }, 400);
 const tooLarge = () => reply({ error: 'too_large' }, 413);
 const upstream = () => reply({ error: 'upstream' }, 502);
-const rateLimited = () => reply({ error: 'rate_limited' }, 429, { 'retry-after': '60' });
+const rateLimited = (seconds = 60) => reply({ error: 'rate_limited' }, 429, { 'retry-after': String(Math.max(1, seconds)) });
 const notConfigured = () => reply({ error: 'not_configured' }, 503);
 export const methodNotAllowed = () => reply({ error: 'method_not_allowed' }, 405, { allow: 'POST' });
 
@@ -266,11 +321,46 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
   }
 
   const { action } = forward;
+
+  // Creem throttled us a moment ago: don't ask again until it said to (or our own wait passes).
+  const backoff = deps.backoff ?? defaultBackoff;
+  const waiting = backoff.remainingSeconds();
+  if (waiting > 0) {
+    log(`license: ${action} held back, creem throttled`);
+    return rateLimited(waiting);
+  }
+
+  // A free floor in this instance's memory first, then the distributed limits every instance shares.
   const limiter = deps.limiter ?? defaultLimiter;
+  const bucket = await keyBucket(forward.body.key);
   if (!limiter.take(`ip:${clientIp(req)}`, LIMITS.ip.max, LIMITS.ip.windowMs)
-    || !limiter.take(`key:${await keyBucket(forward.body.key)}`, LIMITS.key.max, LIMITS.key.windowMs)) {
+    || !limiter.take(`key:${bucket}`, LIMITS.key.max, LIMITS.key.windowMs)) {
     log(`license: ${action} rate limited`);
     return rateLimited();
+  }
+  if (deps.checkRateLimit) {
+    const checks: Array<[string, string | undefined]> = [
+      [FIREWALL_RULES.ip, undefined], // keyed on the caller's IP
+      [FIREWALL_RULES.key, bucket], // keyed on the license key's hash, never the key
+      [action === 'activate' ? FIREWALL_RULES.activate : FIREWALL_RULES.check, 'all'], // the global budget
+    ];
+    for (const [id, rateLimitKey] of checks) {
+      let result: Awaited<ReturnType<CheckRateLimit>>;
+      try {
+        result = await deps.checkRateLimit(id, { request: req, rateLimitKey, timeout: 2_000 });
+      } catch {
+        log(`license: ${action} rate limit check failed`);
+        return upstream(); // fail closed: an unchecked call never reaches Creem
+      }
+      if (result.error === 'not-found' && deps.environment === 'production') {
+        log(`license: not configured (firewall rule ${id} missing)`);
+        return notConfigured(); // production never runs without its budget
+      }
+      if (result.rateLimited) {
+        log(`license: ${action} rate limited (${id})`);
+        return rateLimited();
+      }
+    }
   }
 
   let res: Response;
@@ -289,6 +379,13 @@ export async function handleLicenseRelay(req: Request, deps: LicenseRelayDeps): 
   }
 
   log(`license: ${action} creem ${res.status}`);
+
+  if (res.status === 429) {
+    const seconds = backoff.throttled(res.headers.get('retry-after'));
+    await res.body?.cancel().catch(() => {});
+    return rateLimited(seconds);
+  }
+  backoff.answered();
 
   if (res.status >= 200 && res.status < 300) {
     const bytes = await readCapped(res, MAX_UPSTREAM_BYTES);

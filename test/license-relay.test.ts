@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { APIContext } from 'astro';
 import { ALL, POST } from '../src/pages/api/license';
-import { defaultLimiter, handleLicenseRelay, LIMITS, MAX_BODY_BYTES, RateLimiter } from '../src/lib/license-relay';
+import {
+  BACKOFF, defaultBackoff, defaultLimiter, FIREWALL_RULES, handleLicenseRelay, LIMITS, MAX_BODY_BYTES, RateLimiter,
+  UpstreamBackoff, type CheckRateLimit,
+} from '../src/lib/license-relay';
 
 const URL_ = 'https://netrelish.com/api/license';
 const KEY = 'NRKEY_abcd-1234-EFGH';
@@ -52,6 +55,7 @@ let logs: string[];
 
 beforeEach(() => {
   defaultLimiter.reset();
+  defaultBackoff.reset();
   fetchMock = vi.fn(async () => creemReply(creemLicense()));
   vi.stubGlobal('fetch', fetchMock);
   vi.stubEnv('CREEM_API_KEY', 'creem_secret_test');
@@ -372,7 +376,7 @@ describe('/api/license — Creem failures', () => {
     },
   );
 
-  it.each([401, 403, 429])('%i from Creem (our key or our rate, not the buyer’s license) → 502', async (status) => {
+  it.each([401, 403])('%i from Creem (our key, not the buyer’s license) → 502', async (status) => {
     fetchMock.mockResolvedValueOnce(creemReply({ message: 'nope' }, status));
     const res = await call(post(validate));
     expect(res.status).toBe(502);
@@ -553,5 +557,96 @@ describe('/api/license — rate limits', () => {
     const limiter = new RateLimiter(() => 0, 100);
     for (let i = 0; i < 1000; i++) limiter.take(`ip:${i}`, 10, 60_000);
     expect((limiter as unknown as { hits: Map<string, unknown> }).hits.size).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('/api/license — the shared Creem budget', () => {
+  type Seen = { id: string; rateLimitKey?: string };
+  function firewall(limited: Partial<Record<string, { rateLimited: boolean; error?: 'not-found' | 'blocked' }>> = {}) {
+    const seen: Seen[] = [];
+    const check: CheckRateLimit = async (id, { rateLimitKey }) => {
+      seen.push({ id, rateLimitKey });
+      return limited[id] ?? { rateLimited: false };
+    };
+    return { seen, check };
+  }
+  const relay = (body: unknown, more: Partial<Parameters<typeof handleLicenseRelay>[1]> = {}) =>
+    handleLicenseRelay(post(body, { 'x-real-ip': '203.0.113.9' }), {
+      fetch: fetchMock as unknown as typeof fetch, apiKey: 'k', apiBase: '',
+      limiter: new RateLimiter(), backoff: new UpstreamBackoff(), log: (l) => logs.push(l), ...more,
+    });
+
+  it('checks the caller, the key and the global budget at the edge before calling Creem', async () => {
+    const fw = firewall();
+    expect((await relay(validate, { checkRateLimit: fw.check })).status).toBe(200);
+    expect(fw.seen.map((s) => s.id)).toEqual([FIREWALL_RULES.ip, FIREWALL_RULES.key, FIREWALL_RULES.check]);
+    expect(fw.seen[0].rateLimitKey).toBeUndefined(); // the caller's IP, as the Firewall sees it
+    expect(fw.seen[1].rateLimitKey).toMatch(/^[0-9a-f]{24}$/);
+    expect(fw.seen[2].rateLimitKey).toBe('all');
+    for (const s of fw.seen) expect(s.rateLimitKey ?? '').not.toContain(KEY); // never the key itself
+  });
+
+  it('activations have their own global budget, so checks can never use up theirs', async () => {
+    const fw = firewall({ [FIREWALL_RULES.check]: { rateLimited: true } });
+    expect((await relay(validate, { checkRateLimit: fw.check })).status).toBe(429);
+    expect((await relay(activate, { checkRateLimit: fw.check })).status).toBe(200);
+    expect(fw.seen.at(-1)?.id).toBe(FIREWALL_RULES.activate);
+  });
+
+  it.each(Object.values(FIREWALL_RULES))('a limited %s answers 429 with Retry-After, and Creem is never called', async (id) => {
+    const res = await relay(id === FIREWALL_RULES.activate ? activate : validate, { checkRateLimit: firewall({ [id]: { rateLimited: true } }).check });
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toBe('60');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a check that fails is no answer: an unchecked call never reaches Creem', async () => {
+    const res = await relay(validate, { checkRateLimit: async () => { throw new Error('timeout'); } });
+    expect(res.status).toBe(502);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('production never runs without its budget: a missing Firewall rule is not configured', async () => {
+    const missing = firewall({ [FIREWALL_RULES.key]: { rateLimited: false, error: 'not-found' } });
+    const res = await relay(validate, { checkRateLimit: missing.check, environment: 'production' });
+    expect(res.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(logs).toContain('license: not configured (firewall rule license-key missing)');
+  });
+
+  it('when Creem throttles us, we stop asking until its Retry-After passes', async () => {
+    let t = 0;
+    const backoff = new UpstreamBackoff(() => t);
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'retry-after': '30' } }));
+    const first = await relay(validate, { backoff });
+    expect(first.status).toBe(429);
+    expect(first.headers.get('retry-after')).toBe('30');
+    fetchMock.mockClear();
+    t = 29_000;
+    const held = await relay(validate, { backoff });
+    expect(held.status).toBe(429);
+    expect(held.headers.get('retry-after')).toBe('1');
+    expect(fetchMock).not.toHaveBeenCalled();
+    t = 30_000;
+    expect((await relay(validate, { backoff })).status).toBe(200);
+  });
+
+  it('with no Retry-After, the wait doubles, within bounds, and starts over once Creem answers', () => {
+    let t = 0;
+    const backoff = new UpstreamBackoff(() => t);
+    expect(backoff.throttled(null)).toBe(BACKOFF.firstMs / 1000);
+    t += BACKOFF.firstMs;
+    expect(backoff.throttled(null)).toBe((BACKOFF.firstMs * 2) / 1000);
+    for (let i = 0; i < 20; i++) { t += BACKOFF.maxMs; backoff.throttled(null); }
+    expect(backoff.remainingSeconds()).toBe(BACKOFF.maxMs / 1000);
+    t += BACKOFF.maxMs;
+    backoff.answered();
+    expect(backoff.throttled(null)).toBe(BACKOFF.firstMs / 1000);
+    expect(backoff.throttled('999999')).toBe(BACKOFF.maxMs / 1000); // a huge Retry-After is still bounded
+  });
+
+  it('the route only uses the Firewall check on Vercel', async () => {
+    expect((await call(post(validate))).status).toBe(200); // no VERCEL_ENV: nothing to ask
+    expect(logs.some((l) => l.includes('firewallHostForDevelopment'))).toBe(false);
   });
 });

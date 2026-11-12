@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro';
+import { checkRateLimit } from '@vercel/firewall';
 import { readEnv } from '../../lib/env';
 import { handleLicenseRelay, methodNotAllowed } from '../../lib/license-relay';
 
@@ -12,6 +13,8 @@ export const POST: APIRoute = ({ request }) =>
     apiBase: readEnv('CREEM_API_BASE'),
     environment: readEnv('VERCEL_ENV'),
     productId: readEnv('CREEM_PRODUCT_ID'),
+    // The distributed limits live in Vercel's Firewall, so they're only there on Vercel.
+    checkRateLimit: readEnv('VERCEL_ENV') ? checkRateLimit : undefined,
   });
 
 export const ALL: APIRoute = () => methodNotAllowed();
