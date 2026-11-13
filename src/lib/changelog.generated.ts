@@ -3,18 +3,35 @@
 import type { Release } from './roadmap';
 
 /** The newest tag the app repo has. */
-export const latestTag = "v0.4.2";
+export const latestTag = "v0.5.0";
 
 /** feat and fix commits on main since that tag. */
-export const unreleased: string[] = [
-  "Buying Pro with StoreKit 2",
-  "Provenance — fingerprint, timestamp, Export Proof",
-  "Reseal & diff — seal a page again and see what changed, side by side",
-  "Seal & Summarize — an on-device summary of every sealed page"
-];
+export const unreleased: string[] = [];
 
 /** One entry per published preview, newest first. */
 export const released: Release[] = [
+  {
+    "label": "0.5.0",
+    "when": "November 2026",
+    "title": "Preview 0.5.0",
+    "intro": [
+      "The fourth preview of the native NetRelish for Mac, and the first with Pro. Same as 0.4.2, plus right-click menus and drag, Seal & Summarize, Reseal & diff, and proof of what a page said. It's the direct-download build, signed with our Developer ID and notarized by Apple. It needs macOS 27"
+    ],
+    "added": [
+      "Right-click and drag: Jars, tabs and Brine rows now have menus, and you can move them with the mouse",
+      "A jar slides up and down the Shelf to change its place. It stays on the Shelf. Right-click it for a new tab in that jar, Edit Jar…, six colors, Move Up and Move Down",
+      "A tab drags onto another tab to take its place, or onto a jar to move there. Right-click it for Pin, an icon, Copy Link, Move to Jar, Close and Close Other Tabs",
+      "A Brine row drags onto a jar to reopen there. Right-click it for Restore to any jar",
+      "A green bar shows where a drag will land",
+      "A tab you move to another jar loads again there, with that jar's sign-ins. Sign-ins never cross jars",
+      "A saved copy that has changed says so: When you open a sealed page, NetRelish checks its saved copy against the fingerprint taken when it was sealed. If they match, the header says Unchanged since sealed. If they don't, a line says the copy has changed. The copy is still shown, and nothing is repaired or hidden",
+      "Seal & Summarize: Every jar now runs it when you seal. The tab closes at once, as before, and a few seconds later Apple's on-device model writes two or three sentences about the page. Find them in the Panel (⌘⌥I) under Summary, and in Shortcuts on any result from Search Your Pantry. It needs Apple Intelligence on. The page never leaves your Mac",
+      "Reseal & diff (Pro): On a sealed page, open the Panel and click Seal Again under Seals. NetRelish loads the page again in its jar, seals a new copy beside the old one, and shows the two side by side: removed words struck through on the left, added words underlined on the right. Compare shows the latest two seals any time. The earlier seal is never changed",
+      "Proof of what a page said (Pro): Every sealed page gets a fingerprint of its saved copy, and a timestamp signed by DigiCert. Only the fingerprint goes out: never the page, its address or its title. Export Proof… in the Panel saves a folder with a one-page PDF, the saved copy byte for byte, the signed timestamp, and how anyone can check it without NetRelish",
+      "NetRelish Pro… in the app menu: In this build it says Pro is unlocked. Buying Pro, $39 a year or $99 once, comes with the Mac App Store version",
+      "Fill from your Me card skips fields you can't see: It leaves hidden and off-screen fields alone, and with the cursor in a form it fills only that form. That stops a page from showing one box and quietly collecting the rest of your card. It's a best effort: a page that sets out to hide a field can still get one past it"
+    ]
+  },
   {
     "label": "0.4.2",
     "when": "November 2026",
