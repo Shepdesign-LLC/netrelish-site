@@ -1,49 +1,49 @@
 ---
-import Base from '../layouts/Base.astro';
-import Hero from '../components/Hero.astro';
-import SealStage from '../components/SealStage.astro';
-import Row from '../components/Row.astro';
-import Tray from '../components/mocks/Tray.astro';
-import Shelf from '../components/mocks/Shelf.astro';
-import Inspector from '../components/mocks/Inspector.astro';
-import PantryResults from '../components/mocks/PantryResults.astro';
-import Recipe from '../components/mocks/Recipe.astro';
-import Intelligence from '../components/Intelligence.astro';
-import Pickle from '../components/Pickle.astro';
-import Pro from '../components/Pro.astro';
-import Questions from '../components/Questions.astro';
+// The homepage: Ryan's Zest-template design. The markup, styles and script live in src/home/ as plain files and are
+// inlined untouched, so the design can be edited there without fighting Astro's template syntax. Hash routes
+// (#home, #family, #pro, #workbench, #post-*, #roadmap) switch views in the browser; /roadmap, /privacy and the /api
+// routes are unchanged.
+import '@fontsource-variable/bricolage-grotesque';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
+import body from '../home/body.html?raw';
+import css from '../home/style.css?raw';
+import js from '../home/script.js?raw';
+
+// PUBLIC_STORE_OPEN=true shows direct-purchase buttons on the Pro view that post to /api/checkout. Off by default.
+const storeOpen = import.meta.env.PUBLIC_STORE_OPEN === 'true';
+const store = storeOpen
+  ? `<form class="cta" method="post" action="/api/checkout" style="justify-content:center;margin:18px 0">
+       <button class="btn zest" type="submit" name="plan" value="pro-year">Buy Pro · $39/yr</button>
+       <button class="btn ghost" type="submit" name="plan" value="pro-lifetime">$99 once</button>
+     </form>`
+  : '';
+const html = body.replace('<!--STORE-->', store);
+
+const title = 'NetRelish: the native macOS workbench';
+const description = 'NetRelish, the native macOS workbench. Savor the web. Get more done.';
+const url = new URL('/', Astro.site).href;
 ---
-<Base title="NetRelish — Keep the pages that matter" description="NetRelish is a Mac browser with a pantry. Save any page with one key, keep each project in its own jar, and seal the ones you’ll need again — searchable and offline, on your Mac.">
-  <main>
-    <Hero><SealStage /></Hero>
-
-    <Row id="how" eyebrow="Capture" h2="One key to save anything.">
-      <p>Press <kbd>⌘</kbd><kbd>D</kbd> on any page, or share it from Safari or any app with a share sheet. It lands in Brine, right where you can see it. Nothing gets lost in a bookmarks folder again.</p>
-      <Tray slot="mock" />
-    </Row>
-    <Row eyebrow="Sort" h2="Jars, not folders." flip>
-      <p>Pick a jar on the Shelf and browse in it. Everything you seal there stays in that jar. Jars are where your projects live — clients, research, reading, whatever you’re working on this month. Every jar is its own profile: its own cookies, its own logins.</p>
-      <p>Switch with <kbd>⌘</kbd><kbd>1</kbd> through <kbd>⌘</kbd><kbd>9</kbd>.</p>
-      <Shelf slot="mock" />
-    </Row>
-    <Row eyebrow="Seal" h2="Seal it, and it’s yours.">
-      <p>Sealing saves a complete snapshot, closes the tab, and runs the jar’s Recipe. The page is preserved exactly as you saw it and never changes.</p>
-      <p>The tab count goes down. That’s the point.</p>
-      <Inspector slot="mock" />
-    </Row>
-    <Row eyebrow="Search" h2="Search what you kept, not the whole internet." flip>
-      <p>Every sealed page is indexed in full, on your Mac. Press <kbd>⌘</kbd><kbd>K</kbd> to find it, or search from Shortcuts. A sealed result opens the saved copy, so it works offline.</p>
-      <PantryResults slot="mock" />
-    </Row>
-    <Row eyebrow="Recipes" h2="Workflows that run when you seal.">
-      <p>NetRelish comes with a few Recipes, like Seal &amp; Summarize, which summarizes the page on your Mac. Pick one for a jar and it runs every time you seal there.</p>
-      <p>Every Recipe is a Shortcut, so Siri and the rest of your Mac can run it too.</p>
-      <Recipe slot="mock" />
-    </Row>
-
-    <Intelligence />
-    <Pickle />
-    <Pro />
-    <Questions />
-  </main>
-</Base>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title}</title>
+  <meta name="description" content={description} />
+  <link rel="canonical" href={url} />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content={title} />
+  <meta property="og:description" content={description} />
+  <meta property="og:url" content={url} />
+  <meta property="og:image" content={new URL('/og.png', Astro.site).href} />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <meta name="color-scheme" content="dark" />
+  <style is:inline set:html={css}></style>
+</head>
+<body>
+  <Fragment set:html={html} />
+  <script is:inline set:html={js}></script>
+</body>
+</html>
